@@ -1,0 +1,22 @@
+# Capn Configuration File
+# This file demonstrates the configuration structure for the Capn CLI agent system
+
+global:
+  verbose: false          # Enable verbose logging
+  dry_run: false         # Run in planning mode only
+  parallel: 5            # Maximum parallel agents
+  timeout: 5m            # Global timeout duration
+
+captain:
+  max_concurrent_agents: 5    # Maximum number of concurrent crew agents
+  planning_timeout: 30s       # Timeout for planning phase
+
+crew:
+  timeouts:
+    research: 120s       # Timeout for research tasks
+    coding: 300s         # Timeout for coding tasks
+    analysis: 180s       # Timeout for analysis tasks
+
+mcp:
+  timeout: 10s           # Timeout for MCP server connections
+  retry_count: 3         # Number of retry attempts for failed connections
