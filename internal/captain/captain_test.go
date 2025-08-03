@@ -28,7 +28,7 @@ func TestNewCaptain(t *testing.T) {
 	captain, err := NewCaptain("captain-1", cfg, openaiConfig)
 	require.NoError(t, err)
 	assert.NotNil(t, captain)
-	assert.Equal(t, "captain-1", captain.ID())
+	assert.Equal(t, "captain-1", captain.ID)
 	assert.NotNil(t, captain.planner)
 	assert.NotNil(t, captain.taskQueue)
 	assert.NotNil(t, captain.resultChan)
@@ -84,7 +84,7 @@ func TestCaptain_CreatePlan(t *testing.T) {
 	mockLLM.On("GenerateCompletion", mock.Anything, mock.Anything).Return(response, nil)
 
 	captain := &Captain{
-		id:         "captain-1",
+		ID:         "captain-1",
 		config:     cfg,
 		llmProvider: mockLLM,
 		planner:    NewPlanningEngine(mockLLM),
@@ -115,7 +115,7 @@ func TestCaptain_ExecutePlan_DryRun(t *testing.T) {
 
 	mockLLM := &MockLLMProvider{}
 	captain := &Captain{
-		id:         "captain-1",
+		ID:         "captain-1",
 		config:     cfg,
 		llmProvider: mockLLM,
 		planner:    NewPlanningEngine(mockLLM),
@@ -200,7 +200,7 @@ func TestCaptain_CreatePlan_Error(t *testing.T) {
 		nil, fmt.Errorf("API error"))
 
 	captain := &Captain{
-		id:         "captain-1",
+		ID:         "captain-1",
 		config:     cfg,
 		llmProvider: mockLLM,
 		planner:    NewPlanningEngine(mockLLM),
@@ -229,7 +229,7 @@ func TestCaptain_ExecutePlan_InvalidPlan(t *testing.T) {
 
 	mockLLM := &MockLLMProvider{}
 	captain := &Captain{
-		id:         "captain-1",
+		ID:         "captain-1",
 		config:     cfg,
 		llmProvider: mockLLM,
 		planner:    NewPlanningEngine(mockLLM),
@@ -270,5 +270,5 @@ func TestCaptain_ID(t *testing.T) {
 	captain, err := NewCaptain("test-captain-123", cfg, openaiConfig)
 	require.NoError(t, err)
 
-	assert.Equal(t, "test-captain-123", captain.ID())
+	assert.Equal(t, "test-captain-123", captain.ID)
 }

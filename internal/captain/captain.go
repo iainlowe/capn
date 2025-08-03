@@ -42,7 +42,7 @@ type ExecutionResult struct {
 
 // Captain is the main orchestrator agent that uses LLM for planning
 type Captain struct {
-	id          string
+	ID          string
 	config      *config.Config
 	llmProvider LLMProvider
 	planner     *PlanningEngine
@@ -82,7 +82,7 @@ func NewCaptain(id string, config *config.Config, openaiConfig OpenAIConfig) (*C
 	ctx, cancel := context.WithCancel(context.Background())
 
 	captain := &Captain{
-		id:          id,
+		ID:          id,
 		config:      config,
 		llmProvider: llmProvider,
 		planner:     planner,
@@ -101,10 +101,6 @@ func NewCaptain(id string, config *config.Config, openaiConfig OpenAIConfig) (*C
 	return captain, nil
 }
 
-// ID returns the Captain's ID
-func (c *Captain) ID() string {
-	return c.id
-}
 
 // CreatePlan creates an execution plan from a goal using LLM reasoning
 func (c *Captain) CreatePlan(ctx context.Context, goal string) (*ExecutionPlan, error) {
@@ -186,7 +182,7 @@ func (c *Captain) Status() CaptainStatus {
 	defer c.mu.RUnlock()
 
 	return CaptainStatus{
-		ID:          c.id,
+		ID:          c.ID,
 		Status:      c.status,
 		ActiveTasks: len(c.activeTasks),
 		QueuedTasks: len(c.taskQueue),
