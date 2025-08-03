@@ -64,7 +64,7 @@ func simulateCommunicationScenario(logger *agents.MemoryCommunicationLogger, fil
 
 	// 2. FileAgent responds to Captain
 	time.Sleep(100 * time.Millisecond) // Simulate processing time
-	fileToCaptin := agents.Message{
+	fileToCaptain := agents.Message{
 		ID:        "msg-2",
 		From:      "file-1",
 		To:        "Captain",
