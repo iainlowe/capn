@@ -152,8 +152,23 @@ func (n *NetworkAgent) Execute(ctx context.Context, task agents.Task) agents.Res
 	startTime := time.Now()
 	
 	// Extract task data
-	url, _ := task.Data["url"].(string)
-	method, _ := task.Data["method"].(string)
+	urlVal, urlOk := task.Data["url"]
+	url, urlTypeOk := urlVal.(string)
+	methodVal, methodOk := task.Data["method"]
+	method, methodTypeOk := methodVal.(string)
+	if !urlOk || !urlTypeOk || !methodOk || !methodTypeOk {
+		return agents.Result{
+			TaskID:    task.ID,
+			Success:   false,
+			Output:    "NetworkAgent: missing or invalid 'url' or 'method' in task data",
+			Duration:  time.Since(startTime),
+			Timestamp: time.Now(),
+			Data: map[string]interface{}{
+				"agent_type": "network",
+				"operation":  task.Type,
+			},
+		}
+	}
 	
 	// Simulate network operation based on task type
 	var output string
