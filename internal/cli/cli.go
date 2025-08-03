@@ -54,12 +54,50 @@ func (s *StatusCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
 }
 
 // AgentsCmd represents the agents command
-type AgentsCmd struct{}
+type AgentsCmd struct {
+	List    bool   `help:"List all registered agents" short:"l"`
+	History bool   `help:"Show communication history" short:"h"`
+	Search  string `help:"Search messages containing text" short:"s"`
+	Demo    bool   `help:"Create demo agents and simulate conversation" short:"d"`
+	Limit   int    `help:"Limit number of history messages shown" default:"10"`
+}
 
 func (a *AgentsCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
 	logger.Info("Managing agents")
-	fmt.Println("Managing agents")
-	// TODO: Implement agents management logic
+	
+	// Create agent manager
+	agentManager := NewAgentManager()
+	
+	// Handle demo mode
+	if a.Demo {
+		fmt.Println("Creating demo agents and simulating conversation...")
+		if err := agentManager.CreateExampleAgents(); err != nil {
+			return fmt.Errorf("failed to create demo agents: %w", err)
+		}
+		if err := agentManager.SimulateConversation(); err != nil {
+			return fmt.Errorf("failed to simulate conversation: %w", err)
+		}
+		fmt.Println("Demo completed!")
+	}
+	
+	// Handle search
+	if a.Search != "" {
+		result := agentManager.SearchMessages(a.Search)
+		fmt.Print(result)
+		return nil
+	}
+	
+	// Handle history
+	if a.History {
+		result := agentManager.GetCommunicationHistory(a.Limit)
+		fmt.Print(result)
+		return nil
+	}
+	
+	// Default: list agents
+	result := agentManager.ListAgents()
+	fmt.Print(result)
+	
 	return nil
 }
 
