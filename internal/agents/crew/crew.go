@@ -238,7 +238,14 @@ func (r *ResearchAgent) Execute(ctx context.Context, task agents.Task) agents.Re
 	
 	// Extract task data
 	topic, _ := task.Data["topic"].(string)
-	depth, _ := task.Data["depth"].(string)
+	depthVal, ok := task.Data["depth"]
+	var depth string
+	if ok {
+		depth, ok = depthVal.(string)
+		if !ok {
+			depth = ""
+		}
+	}
 	
 	// Simulate research operation based on task type
 	var output string
