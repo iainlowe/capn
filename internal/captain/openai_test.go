@@ -174,3 +174,41 @@ func TestOpenAIConfig_Validate(t *testing.T) {
 		})
 	}
 }
+
+func TestOpenAIProvider_GenerateCompletion_InputValidation(t *testing.T) {
+	config := OpenAIConfig{
+		APIKey: "test-key",
+		Model:  "gpt-3.5-turbo",
+	}
+
+	provider, err := NewOpenAIProvider(config)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Test invalid request validation
+	invalidReq := CompletionRequest{
+		Messages: []Message{}, // Empty messages should fail validation
+	}
+
+	_, err = provider.GenerateCompletion(ctx, invalidReq)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid completion request")
+}
+
+func TestOpenAIProvider_GenerateEmbedding_InputValidation(t *testing.T) {
+	config := OpenAIConfig{
+		APIKey: "test-key",
+		Model:  "gpt-3.5-turbo",
+	}
+
+	provider, err := NewOpenAIProvider(config)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Test empty text validation
+	_, err = provider.GenerateEmbedding(ctx, "")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "text cannot be empty")
+}

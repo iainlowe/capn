@@ -15,11 +15,17 @@ type MockLLMProvider struct {
 
 func (m *MockLLMProvider) GenerateCompletion(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
 	args := m.Called(ctx, req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*CompletionResponse), args.Error(1)
 }
 
 func (m *MockLLMProvider) GenerateEmbedding(ctx context.Context, text string) ([]float64, error) {
 	args := m.Called(ctx, text)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).([]float64), args.Error(1)
 }
 

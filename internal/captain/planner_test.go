@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -303,4 +304,141 @@ func TestPlanningEngine_buildPlanningPrompt(t *testing.T) {
 	// Check user message
 	assert.Equal(t, "user", messages[1].Role)
 	assert.Contains(t, messages[1].Content, goal)
+}
+
+func TestPlanningEngine_parsePlanResponse(t *testing.T) {
+	engine := NewPlanningEngine(&MockLLMProvider{})
+	
+	tests := []struct {
+		name     string
+		response string
+		wantErr  bool
+		errMsg   string
+	}{
+		{
+			name: "valid JSON response",
+			response: `{
+				"tasks": [
+					{
+						"id": "task-1",
+						"type": "analysis",
+						"priority": "high",
+						"description": "Test task",
+						"dependencies": []
+					}
+				],
+				"strategy": "sequential",
+				"estimated_duration": "10m",
+				"reasoning": "This is a test plan"
+			}`,
+			wantErr: false,
+		},
+		{
+			name:     "invalid JSON",
+			response: `{invalid json}`,
+			wantErr:  true,
+			errMsg:   "failed to unmarshal plan response",
+		},
+		{
+			name: "valid JSON with code blocks",
+			response: "```json\n" + `{
+				"tasks": [
+					{
+						"id": "task-1",
+						"type": "analysis",
+						"priority": "high",
+						"description": "Test task",
+						"dependencies": []
+					}
+				],
+				"strategy": "sequential",
+				"estimated_duration": "10m"
+			}` + "\n```",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan, err := engine.parsePlanResponse(tt.response)
+			
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, plan)
+				assert.NotEmpty(t, plan.Tasks)
+			}
+		})
+	}
+}
+
+func TestPlanningEngine_parseEstimatedDuration(t *testing.T) {
+	engine := NewPlanningEngine(&MockLLMProvider{})
+	
+	tests := []struct {
+		name     string
+		input    string
+		expected time.Duration
+		wantErr  bool
+	}{
+		{
+			name:     "minutes",
+			input:    "5m",
+			expected: 5 * time.Minute,
+			wantErr:  false,
+		},
+		{
+			name:     "hours",
+			input:    "2h",
+			expected: 2 * time.Hour,
+			wantErr:  false,
+		},
+		{
+			name:     "seconds",
+			input:    "30s",
+			expected: 30 * time.Second,
+			wantErr:  false,
+		},
+		{
+			name:     "complex duration",
+			input:    "1h30m",
+			expected: time.Hour + 30*time.Minute,
+			wantErr:  false,
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: 30 * time.Minute, // default fallback
+			wantErr:  false,
+		},
+		{
+			name:     "minutes format",
+			input:    "45 minutes",
+			expected: 45 * time.Minute,
+			wantErr:  false,
+		},
+		{
+			name:     "invalid format",
+			input:    "invalid format",
+			expected: 0, // returns error, no default
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := engine.parseEstimatedDuration(tt.input)
+			
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
 }

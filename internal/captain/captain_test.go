@@ -2,6 +2,7 @@ package captain
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -183,4 +184,91 @@ func TestCaptain_Stop(t *testing.T) {
 
 	err = captain.Stop()
 	assert.NoError(t, err)
+}
+
+func TestCaptain_CreatePlan_Error(t *testing.T) {
+	cfg := &config.Config{
+		Captain: config.CaptainConfig{
+			MaxConcurrentAgents: 5,
+			PlanningTimeout:     30000000000,
+		},
+	}
+
+	// Mock LLM that returns an error
+	mockLLM := &MockLLMProvider{}
+	mockLLM.On("GenerateCompletion", mock.Anything, mock.Anything).Return(
+		nil, fmt.Errorf("API error"))
+
+	captain := &Captain{
+		id:         "captain-1",
+		config:     cfg,
+		llmProvider: mockLLM,
+		planner:    NewPlanningEngine(mockLLM),
+		taskQueue:  make(chan Task, 100),
+		resultChan: make(chan Result, 100),
+	}
+
+	ctx := context.Background()
+	goal := "analyze code quality"
+
+	plan, err := captain.CreatePlan(ctx, goal)
+	assert.Error(t, err)
+	assert.Nil(t, plan)
+	assert.Contains(t, err.Error(), "failed to create plan")
+
+	mockLLM.AssertExpectations(t)
+}
+
+func TestCaptain_ExecutePlan_InvalidPlan(t *testing.T) {
+	cfg := &config.Config{
+		Captain: config.CaptainConfig{
+			MaxConcurrentAgents: 5,
+			PlanningTimeout:     30000000000,
+		},
+	}
+
+	mockLLM := &MockLLMProvider{}
+	captain := &Captain{
+		id:         "captain-1",
+		config:     cfg,
+		llmProvider: mockLLM,
+		planner:    NewPlanningEngine(mockLLM),
+		taskQueue:  make(chan Task, 100),
+		resultChan: make(chan Result, 100),
+	}
+
+	// Test with nil plan
+	ctx := context.Background()
+	result, err := captain.ExecutePlan(ctx, nil, false)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "plan cannot be nil")
+
+	// Test with invalid plan
+	invalidPlan := &ExecutionPlan{
+		ID: "", // empty ID should fail validation
+	}
+	result, err = captain.ExecutePlan(ctx, invalidPlan, false)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "invalid plan")
+}
+
+func TestCaptain_ID(t *testing.T) {
+	cfg := &config.Config{
+		Captain: config.CaptainConfig{
+			MaxConcurrentAgents: 5,
+			PlanningTimeout:     30000000000,
+		},
+	}
+
+	openaiConfig := OpenAIConfig{
+		APIKey: "test-key",
+		Model:  "gpt-3.5-turbo",
+	}
+
+	captain, err := NewCaptain("test-captain-123", cfg, openaiConfig)
+	require.NoError(t, err)
+
+	assert.Equal(t, "test-captain-123", captain.ID())
 }

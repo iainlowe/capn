@@ -34,8 +34,13 @@ func (e *ExecuteCmd) Run(globals *GlobalOptions, logger *zap.Logger, config *con
 	// Check if we're in planning mode (plan-only or global dry-run)
 	planningMode := e.PlanOnly || globals.DryRun
 	
-	// Check if OpenAI is configured
-	if config.OpenAI.APIKey == "" {
+	// Check if OpenAI is configured (either in config or environment)
+	openaiAPIKey := config.OpenAI.APIKey
+	if envKey := os.Getenv("OPENAI_API_KEY"); envKey != "" {
+		openaiAPIKey = envKey
+	}
+	
+	if openaiAPIKey == "" {
 		if planningMode {
 			logger.Info("Creating basic plan (OpenAI not configured)", zap.String("goal", e.Goal))
 			fmt.Printf("Planning: %s\n", e.Goal)
@@ -49,7 +54,7 @@ func (e *ExecuteCmd) Run(globals *GlobalOptions, logger *zap.Logger, config *con
 		}
 	}
 
-	// Override config with environment variable if present
+	// Create OpenAI config with proper priority (env > config)
 	openaiConfig := captain.OpenAIConfig{
 		APIKey:      config.OpenAI.APIKey,
 		Model:       config.OpenAI.Model,
