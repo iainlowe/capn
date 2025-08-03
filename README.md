@@ -1,2 +1,0 @@
-# capn
-Capn project repository
