@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -11,7 +13,43 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/iainlowe/capn/internal/config"
+	"github.com/iainlowe/capn/internal/task"
 )
+
+var (
+	globalTaskManager task.TaskManager
+	taskManagerMu     sync.RWMutex
+	globalCLI         *CLI
+	cliMu             sync.RWMutex
+)
+
+// setGlobalTaskManager sets the global task manager instance
+func setGlobalTaskManager(tm task.TaskManager) {
+	taskManagerMu.Lock()
+	defer taskManagerMu.Unlock()
+	globalTaskManager = tm
+}
+
+// getGlobalTaskManager gets the global task manager instance
+func getGlobalTaskManager() task.TaskManager {
+	taskManagerMu.RLock()
+	defer taskManagerMu.RUnlock()
+	return globalTaskManager
+}
+
+// setCurrentCLI sets the current CLI instance for command access
+func setCurrentCLI(cli *CLI) {
+	cliMu.Lock()
+	defer cliMu.Unlock()
+	globalCLI = cli
+}
+
+// getCurrentCLI gets the current CLI instance
+func getCurrentCLI() *CLI {
+	cliMu.RLock()
+	defer cliMu.RUnlock()
+	return globalCLI
+}
 
 // GlobalOptions holds all global command-line options
 type GlobalOptions struct {
@@ -32,14 +70,34 @@ func (e *ExecuteCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
 	// Check if we're in planning mode (plan-only or global dry-run)
 	planningMode := e.PlanOnly || globals.DryRun
 	
+	// Get current CLI instance for output
+	cli := getCurrentCLI()
+	
 	if planningMode {
 		logger.Info("Creating plan", zap.String("goal", e.Goal))
-		fmt.Printf("Planning: %s\n", e.Goal)
+		fmt.Fprintf(cli.getOutput(), "Planning: %s\n", e.Goal)
 		// TODO: Implement planning logic
 	} else {
-		logger.Info("Executing", zap.String("goal", e.Goal))
-		fmt.Printf("Executing: %s\n", e.Goal)
-		// TODO: Implement execution logic
+		logger.Info("Starting task", zap.String("goal", e.Goal))
+		
+		// Get task manager from global singleton (we'll implement this)
+		taskManager := getGlobalTaskManager()
+		if taskManager == nil {
+			// Fallback to old behavior for compatibility
+			logger.Info("Task manager not available, falling back to old behavior")
+			fmt.Fprintf(cli.getOutput(), "Executing: %s\n", e.Goal)
+			return nil
+		}
+		
+		// Start fire-and-forget task execution
+		ctx := context.Background()
+		taskExec, err := taskManager.StartTask(ctx, e.Goal)
+		if err != nil {
+			return fmt.Errorf("failed to start task: %w", err)
+		}
+		
+		fmt.Fprintf(cli.getOutput(), "Task started: %s\n", taskExec.ID)
+		fmt.Fprintf(cli.getOutput(), "Captain has begun planning...\n")
 	}
 	return nil
 }
@@ -49,7 +107,37 @@ type StatusCmd struct{}
 
 func (s *StatusCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
 	logger.Info("Checking status")
-	// TODO: Implement status logic
+	
+	// Get current CLI instance for output
+	cli := getCurrentCLI()
+	
+	// Get task manager from global singleton
+	taskManager := getGlobalTaskManager()
+	if taskManager == nil {
+		// Fallback to old behavior
+		fmt.Fprintf(cli.getOutput(), "No active tasks\n")
+		return nil
+	}
+	
+	// List all active tasks
+	tasks, err := taskManager.ListTasks(task.TaskFilter{})
+	if err != nil {
+		return fmt.Errorf("failed to list tasks: %w", err)
+	}
+	
+	if len(tasks) == 0 {
+		fmt.Fprintf(cli.getOutput(), "No active tasks\n")
+		return nil
+	}
+	
+	fmt.Fprintf(cli.getOutput(), "Active tasks (%d):\n", len(tasks))
+	for _, t := range tasks {
+		fmt.Fprintf(cli.getOutput(), "  %s: %s [%s]\n", t.ID, t.Goal, t.Status)
+		if t.Plan != nil && len(t.Plan.Steps) > 0 {
+			fmt.Fprintf(cli.getOutput(), "    Steps: %d/%d completed\n", len(t.Results), len(t.Plan.Steps))
+		}
+	}
+	
 	return nil
 }
 
@@ -58,7 +146,8 @@ type AgentsCmd struct{}
 
 func (a *AgentsCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
 	logger.Info("Managing agents")
-	fmt.Println("Managing agents")
+	cli := getCurrentCLI()
+	fmt.Fprintf(cli.getOutput(), "Managing agents\n")
 	// TODO: Implement agents management logic
 	return nil
 }
@@ -68,7 +157,8 @@ type MCPCmd struct{}
 
 func (m *MCPCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
 	logger.Info("Managing MCP servers")
-	fmt.Println("Managing MCP servers")
+	cli := getCurrentCLI()
+	fmt.Fprintf(cli.getOutput(), "Managing MCP servers\n")
 	// TODO: Implement MCP server management logic
 	return nil
 }
@@ -85,6 +175,7 @@ type CLI struct {
 	output       io.Writer
 	logger       *zap.Logger
 	config       *config.Config
+	taskManager  task.TaskManager
 	callback     func(*GlobalOptions)
 	exitOverride bool
 	skipConfig   bool // Skip config loading for tests
@@ -95,6 +186,7 @@ func NewCLI() *CLI {
 	return &CLI{
 		output:       os.Stdout,
 		exitOverride: true, // Default to true for tests
+		taskManager:  task.NewManager(),
 	}
 }
 
@@ -113,6 +205,14 @@ func (c *CLI) SetGlobalOptionsCallback(callback func(*GlobalOptions)) {
 	c.callback = callback
 }
 
+// getOutput returns the output writer for the CLI
+func (c *CLI) getOutput() io.Writer {
+	if c.output == nil {
+		return os.Stdout
+	}
+	return c.output
+}
+
 // SetSkipConfigForTests disables config file loading for testing
 func (c *CLI) SetSkipConfigForTests(skip bool) {
 	c.skipConfig = skip
@@ -122,6 +222,17 @@ func (c *CLI) SetSkipConfigForTests(skip bool) {
 func (c *CLI) Parse(args []string) error {
 	// Initialize logger first (needed for binding)
 	c.logger = c.createLogger()
+	
+	// Initialize task manager if not already done
+	if c.taskManager == nil {
+		c.taskManager = task.NewManager()
+	}
+	
+	// Set global task manager for command access
+	setGlobalTaskManager(c.taskManager)
+	
+	// Set global CLI for command access
+	setCurrentCLI(c)
 	
 	// Create parser with bindings for command methods
 	options := []kong.Option{
@@ -167,7 +278,15 @@ func (c *CLI) Parse(args []string) error {
 	}
 	
 	// Run the selected command
-	return ctx.Run()
+	err = ctx.Run()
+	
+	// Cleanup task manager if needed
+	if c.taskManager != nil && !c.skipConfig {
+		// Only close for real execution, not tests
+		defer c.taskManager.Close()
+	}
+	
+	return err
 }
 
 // createLogger creates a zap logger based on verbose setting
