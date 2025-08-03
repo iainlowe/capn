@@ -1,12 +1,16 @@
 # Coverage files
 *.out
 *_coverage.out
+*_coverage_new.out
 coverage.html
 
 # Build artifacts
 capn
 dist/
 build/
+
+# Demo and example executables
+agent_communication_demo
 
 # Temporary files
 *.tmp

@@ -22,7 +22,7 @@ func (f *CrewAgentFactory) CreateAgent(id, name string, agentType agents.AgentTy
 	case agents.AgentTypeFile:
 		return NewFileAgent(id, name), nil
 	case agents.AgentTypeNetwork:
-		return NewNetworkAgent(id, name), nil  
+		return NewNetworkAgent(id, name), nil
 	case agents.AgentTypeResearch:
 		return NewResearchAgent(id, name), nil
 	default:
@@ -57,9 +57,11 @@ func (f *FileAgent) Execute(ctx context.Context, task agents.Task) agents.Result
 	// Set status to busy during execution
 	f.BaseAgent.SetStatus(agents.AgentStatusBusy)
 	defer f.BaseAgent.SetStatus(agents.AgentStatusIdle)
-	
+
 	startTime := time.Now()
-	
+	var output string
+	success := true
+
 	// Extract task data
 	pathVal, ok := task.Data["path"]
 	path, okStr := pathVal.(string)
@@ -84,7 +86,7 @@ func (f *FileAgent) Execute(ctx context.Context, task agents.Task) agents.Result
 		// pattern is missing or not a string; default to empty string
 		pattern = ""
 	}
-	
+
 	switch task.Type {
 	case "file_analysis":
 		output = fmt.Sprintf("FileAgent executed file operation: analyzing files at %s", path)
@@ -93,21 +95,21 @@ func (f *FileAgent) Execute(ctx context.Context, task agents.Task) agents.Result
 		}
 		// Simulate finding files
 		output += " - Found files and performed analysis"
-		
+
 	case "file_read":
 		output = fmt.Sprintf("FileAgent executed file operation: reading file %s", path)
-		
+
 	case "file_write":
 		output = fmt.Sprintf("FileAgent executed file operation: writing to file %s", path)
-		
+
 	case "file_search":
 		query, _ := task.Data["query"].(string)
 		output = fmt.Sprintf("FileAgent executed file operation: searching for '%s' in %s", query, path)
-		
+
 	default:
 		output = fmt.Sprintf("FileAgent executed file operation: %s", task.Description)
 	}
-	
+
 	return agents.Result{
 		TaskID:    task.ID,
 		Success:   success,
@@ -116,7 +118,7 @@ func (f *FileAgent) Execute(ctx context.Context, task agents.Task) agents.Result
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
 			"agent_type": "file",
-			"operation": task.Type,
+			"operation":  task.Type,
 		},
 	}
 }
@@ -148,9 +150,9 @@ func (n *NetworkAgent) Execute(ctx context.Context, task agents.Task) agents.Res
 	// Set status to busy during execution
 	n.BaseAgent.SetStatus(agents.AgentStatusBusy)
 	defer n.BaseAgent.SetStatus(agents.AgentStatusIdle)
-	
+
 	startTime := time.Now()
-	
+
 	// Extract task data
 	urlVal, urlOk := task.Data["url"]
 	url, urlTypeOk := urlVal.(string)
@@ -169,30 +171,30 @@ func (n *NetworkAgent) Execute(ctx context.Context, task agents.Task) agents.Res
 			},
 		}
 	}
-	
+
 	// Simulate network operation based on task type
 	var output string
 	var success bool = true
-	
+
 	switch task.Type {
 	case "api_call":
 		output = fmt.Sprintf("NetworkAgent executed network operation: %s request to %s", method, url)
 		// Simulate API response
 		output += " - Received successful response"
-		
+
 	case "web_scrape":
 		output = fmt.Sprintf("NetworkAgent executed network operation: scraping data from %s", url)
-		
+
 	case "download":
 		output = fmt.Sprintf("NetworkAgent executed network operation: downloading from %s", url)
-		
+
 	case "upload":
 		output = fmt.Sprintf("NetworkAgent executed network operation: uploading to %s", url)
-		
+
 	default:
-		output = fmt.Sprintf("NetworkAgent executed network operation: %s", task.Description)  
+		output = fmt.Sprintf("NetworkAgent executed network operation: %s", task.Description)
 	}
-	
+
 	return agents.Result{
 		TaskID:    task.ID,
 		Success:   success,
@@ -201,7 +203,7 @@ func (n *NetworkAgent) Execute(ctx context.Context, task agents.Task) agents.Res
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
 			"agent_type": "network",
-			"operation": task.Type,
+			"operation":  task.Type,
 		},
 	}
 }
@@ -233,9 +235,9 @@ func (r *ResearchAgent) Execute(ctx context.Context, task agents.Task) agents.Re
 	// Set status to busy during execution
 	r.BaseAgent.SetStatus(agents.AgentStatusBusy)
 	defer r.BaseAgent.SetStatus(agents.AgentStatusIdle)
-	
+
 	startTime := time.Now()
-	
+
 	// Extract task data
 	topicVal, ok := task.Data["topic"]
 	topic, okType := topicVal.(string)
@@ -260,11 +262,11 @@ func (r *ResearchAgent) Execute(ctx context.Context, task agents.Task) agents.Re
 			depth = ""
 		}
 	}
-	
+
 	// Simulate research operation based on task type
 	var output string
 	var success bool = true
-	
+
 	switch task.Type {
 	case "research":
 		output = fmt.Sprintf("ResearchAgent executed research operation: researching '%s'", topic)
@@ -273,20 +275,20 @@ func (r *ResearchAgent) Execute(ctx context.Context, task agents.Task) agents.Re
 		}
 		// Simulate research results
 		output += " - Found relevant information and patterns"
-		
+
 	case "analysis":
 		output = fmt.Sprintf("ResearchAgent executed research operation: analyzing %s", topic)
-		
+
 	case "documentation":
 		output = fmt.Sprintf("ResearchAgent executed research operation: documenting %s", topic)
-		
+
 	case "best_practices":
 		output = fmt.Sprintf("ResearchAgent executed research operation: finding best practices for %s", topic)
-		
+
 	default:
 		output = fmt.Sprintf("ResearchAgent executed research operation: %s", task.Description)
 	}
-	
+
 	return agents.Result{
 		TaskID:    task.ID,
 		Success:   success,
@@ -295,7 +297,7 @@ func (r *ResearchAgent) Execute(ctx context.Context, task agents.Task) agents.Re
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
 			"agent_type": "research",
-			"operation": task.Type,
+			"operation":  task.Type,
 		},
 	}
 }

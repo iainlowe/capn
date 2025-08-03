@@ -3,7 +3,8 @@ package captain
 import (
 	"context"
 	"fmt"
-	"strings"
+
+	"github.com/iainlowe/capn/internal/common"
 )
 
 // LLMProvider defines the interface for language model providers
@@ -20,21 +21,16 @@ type Message struct {
 
 // Validate validates the message
 func (m *Message) Validate() error {
-	if m.Role == "" {
-		return fmt.Errorf("role cannot be empty")
-	}
-	if m.Content == "" {
-		return fmt.Errorf("content cannot be empty")
-	}
-	
-	validRoles := []string{"system", "user", "assistant"}
-	for _, validRole := range validRoles {
-		if m.Role == validRole {
-			return nil
-		}
-	}
-	
-	return fmt.Errorf("invalid role: %s, must be one of: %s", m.Role, strings.Join(validRoles, ", "))
+	validator := common.NewValidator()
+	validator.AddRule("role", common.Required("role"))
+	validator.AddRule("content", common.Required("content"))
+	validator.AddRule("role_value", common.OneOf("role", "system", "user", "assistant"))
+
+	return validator.Validate(map[string]interface{}{
+		"role":       m.Role,
+		"content":    m.Content,
+		"role_value": m.Role,
+	})
 }
 
 // CompletionRequest represents a request to generate a completion
@@ -47,24 +43,30 @@ type CompletionRequest struct {
 
 // Validate validates the completion request
 func (r *CompletionRequest) Validate() error {
+	// First validate basic fields
+	validator := common.NewValidator()
+	validator.AddRule("max_tokens", common.Positive("max_tokens"))
+	validator.AddRule("temperature", common.Range("temperature", 0, 1))
+
+	err := validator.Validate(map[string]interface{}{
+		"max_tokens":  r.MaxTokens,
+		"temperature": r.Temperature,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Validate messages
 	if len(r.Messages) == 0 {
 		return fmt.Errorf("messages cannot be empty")
 	}
-	
+
 	for i, msg := range r.Messages {
 		if err := msg.Validate(); err != nil {
 			return fmt.Errorf("invalid message at index %d: %w", i, err)
 		}
 	}
-	
-	if r.MaxTokens <= 0 {
-		return fmt.Errorf("max_tokens must be positive")
-	}
-	
-	if r.Temperature < 0 || r.Temperature > 1 {
-		return fmt.Errorf("temperature must be between 0 and 1")
-	}
-	
+
 	return nil
 }
 

@@ -72,7 +72,7 @@ func simulateCommunicationScenario(logger *agents.MemoryCommunicationLogger, fil
 		Type:      agents.MessageTypeText,
 		Timestamp: time.Date(2025, 8, 3, 10, 15, 45, 0, time.UTC),
 	}
-	logger.LogMessage("file-1", "Captain", fileToCaptin)
+	logger.LogMessage("file-1", "Captain", fileToCaptain)
 	fmt.Println("FileAgent-1 -> Captain: Status update sent")
 
 	// 3. FileAgent asks ResearchAgent for help

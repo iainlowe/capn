@@ -5,7 +5,8 @@ import (
 	"os"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"github.com/iainlowe/capn/internal/common"
+	yaml "gopkg.in/yaml.v3"
 )
 
 // GlobalConfig holds global command-line options
@@ -99,31 +100,41 @@ func LoadConfig(filename string) (*Config, error) {
 	return config, nil
 }
 
-// Validate validates the configuration
+// Validate validates the configuration using the common validation framework
 func (c *Config) Validate() error {
-	if c.Captain.MaxConcurrentAgents <= 0 {
-		return fmt.Errorf("max_concurrent_agents must be positive")
-	}
+	validator := common.NewValidator()
+	validator.AddRule("max_concurrent_agents", common.Positive("max_concurrent_agents"))
+	validator.AddRule("planning_timeout", common.Positive("planning_timeout"))
+	validator.AddRule("parallel", common.Positive("parallel"))
 
-	if c.Captain.PlanningTimeout <= 0 {
-		return fmt.Errorf("planning_timeout must be positive")
-	}
+	// Validate basic fields
+	err := validator.Validate(map[string]interface{}{
+		"max_concurrent_agents": c.Captain.MaxConcurrentAgents,
+		"planning_timeout":      c.Captain.PlanningTimeout.Nanoseconds(),
+		"parallel":              c.Global.Parallel,
+	})
 
-	if c.Global.Parallel <= 0 {
-		return fmt.Errorf("parallel must be positive")
+	if err != nil {
+		return err
 	}
 
 	// Validate OpenAI config if API key is provided
 	if c.OpenAI.APIKey != "" {
-		if c.OpenAI.Model == "" {
-			return fmt.Errorf("openai model cannot be empty when api_key is set")
-		}
-		if c.OpenAI.Temperature < 0 || c.OpenAI.Temperature > 1 {
-			return fmt.Errorf("openai temperature must be between 0 and 1")
-		}
-		if c.OpenAI.MaxRetries < 0 {
-			return fmt.Errorf("openai max_retries cannot be negative")
-		}
+		openaiValidator := common.NewValidator()
+		openaiValidator.AddRule("model", common.Required("openai model"))
+		openaiValidator.AddRule("temperature", common.Range("openai temperature", 0, 1))
+		openaiValidator.AddRule("max_retries", func(value interface{}) error {
+			if maxRetries, ok := value.(int); ok && maxRetries < 0 {
+				return fmt.Errorf("openai max_retries cannot be negative")
+			}
+			return nil
+		})
+
+		return openaiValidator.Validate(map[string]interface{}{
+			"model":       c.OpenAI.Model,
+			"temperature": c.OpenAI.Temperature,
+			"max_retries": c.OpenAI.MaxRetries,
+		})
 	}
 
 	return nil

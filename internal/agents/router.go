@@ -3,6 +3,8 @@ package agents
 import (
 	"fmt"
 	"sync"
+	
+	"github.com/iainlowe/capn/internal/common"
 )
 
 // MessageRouter handles routing messages between agents and logging communications
@@ -126,15 +128,7 @@ func (r *MessageRouter) BroadcastMessage(message Message) error {
 
 // GetRegisteredAgents returns a copy of all registered agents
 func (r *MessageRouter) GetRegisteredAgents() []Agent {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	
-	agents := make([]Agent, 0, len(r.agents))
-	for _, agent := range r.agents {
-		agents = append(agents, agent)
-	}
-	
-	return agents
+	return common.CollectMapValues(&r.mu, r.agents)
 }
 
 // GetAgent returns a specific agent by ID

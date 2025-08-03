@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/iainlowe/capn/internal/testutil"
 )
 
 func TestAgentType_String(t *testing.T) {
@@ -46,14 +47,10 @@ func TestAgentStatus_String(t *testing.T) {
 }
 
 func TestMessage_Validation(t *testing.T) {
-	tests := []struct {
-		name      string
-		message   Message
-		wantError bool
-	}{
+	testCases := []testutil.ValidationTestCase[Message]{
 		{
-			name: "valid message",
-			message: Message{
+			Name: "valid message",
+			Input: Message{
 				ID:        "msg-1",
 				From:      "agent-1",
 				To:        "agent-2",
@@ -61,122 +58,104 @@ func TestMessage_Validation(t *testing.T) {
 				Type:      MessageTypeText,
 				Timestamp: time.Now(),
 			},
-			wantError: false,
+			WantError: false,
 		},
 		{
-			name: "empty ID",
-			message: Message{
+			Name: "empty ID",
+			Input: Message{
 				From:      "agent-1",
 				To:        "agent-2",
 				Content:   "Hello world",
 				Type:      MessageTypeText,
 				Timestamp: time.Now(),
 			},
-			wantError: true,
+			WantError: true,
 		},
 		{
-			name: "empty from",
-			message: Message{
+			Name: "empty from",
+			Input: Message{
 				ID:        "msg-1",
 				To:        "agent-2",
 				Content:   "Hello world",
 				Type:      MessageTypeText,
 				Timestamp: time.Now(),
 			},
-			wantError: true,
+			WantError: true,
 		},
 		{
-			name: "empty to",
-			message: Message{
+			Name: "empty to",
+			Input: Message{
 				ID:        "msg-1",
 				From:      "agent-1",
 				Content:   "Hello world",
 				Type:      MessageTypeText,
 				Timestamp: time.Now(),
 			},
-			wantError: true,
+			WantError: true,
 		},
 		{
-			name: "empty content",
-			message: Message{
+			Name: "empty content",
+			Input: Message{
 				ID:        "msg-1",
 				From:      "agent-1",
 				To:        "agent-2",
 				Type:      MessageTypeText,
 				Timestamp: time.Now(),
 			},
-			wantError: true,
+			WantError: true,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.message.Validate()
-			if tt.wantError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
+	testutil.RunValidationTests(t, testCases, func(msg Message) error {
+		return msg.Validate()
+	})
 }
 
 func TestTask_Validation(t *testing.T) {
-	tests := []struct {
-		name      string
-		task      Task
-		wantError bool
-	}{
+	testCases := []testutil.ValidationTestCase[Task]{
 		{
-			name: "valid task",
-			task: Task{
+			Name: "valid task",
+			Input: Task{
 				ID:          "task-1",
 				Type:        "analysis",
 				Description: "Analyze files",
 				Priority:    PriorityMedium,
 				Data:        map[string]interface{}{"path": "/tmp"},
 			},
-			wantError: false,
+			WantError: false,
 		},
 		{
-			name: "empty ID",
-			task: Task{
+			Name: "empty ID",
+			Input: Task{
 				Type:        "analysis",
 				Description: "Analyze files",
 				Priority:    PriorityMedium,
 			},
-			wantError: true,
+			WantError: true,
 		},
 		{
-			name: "empty type",
-			task: Task{
+			Name: "empty type",
+			Input: Task{
 				ID:          "task-1",
 				Description: "Analyze files",
 				Priority:    PriorityMedium,
 			},
-			wantError: true,
+			WantError: true,
 		},
 		{
-			name: "empty description",
-			task: Task{
+			Name: "empty description",
+			Input: Task{
 				ID:       "task-1",
 				Type:     "analysis",
 				Priority: PriorityMedium,
 			},
-			wantError: true,
+			WantError: true,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.task.Validate()
-			if tt.wantError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
+	testutil.RunValidationTests(t, testCases, func(task Task) error {
+		return task.Validate()
+	})
 }
 
 func TestResult_Success(t *testing.T) {

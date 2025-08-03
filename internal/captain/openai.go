@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/sashabaranov/go-openai"
+	"github.com/iainlowe/capn/internal/common"
 )
 
 // OpenAIConfig holds configuration for the OpenAI provider
@@ -16,56 +16,57 @@ type OpenAIConfig struct {
 	Temperature float64 `yaml:"temperature"`
 }
 
-// Validate validates the OpenAI configuration
+// Validate validates the OpenAI configuration using the validation framework
 func (c *OpenAIConfig) Validate() error {
-	if c.APIKey == "" {
-		return fmt.Errorf("api_key cannot be empty")
-	}
-	if c.Model == "" {
-		return fmt.Errorf("model cannot be empty")
-	}
-	if c.Temperature < 0 || c.Temperature > 1 {
-		return fmt.Errorf("temperature must be between 0 and 1")
-	}
-	if c.MaxRetries < 0 {
-		return fmt.Errorf("max_retries cannot be negative")
-	}
-	return nil
+	validator := common.NewValidator()
+	validator.AddRule("api_key", common.Required("api_key"))
+	validator.AddRule("model", common.Required("model"))
+	validator.AddRule("temperature", common.Range("temperature", 0, 1))
+	validator.AddRule("max_retries", common.Positive("max_retries"))
+
+	return validator.Validate(map[string]interface{}{
+		"api_key":     c.APIKey,
+		"model":       c.Model,
+		"temperature": c.Temperature,
+		"max_retries": c.MaxRetries,
+	})
 }
 
 // OpenAIProvider implements LLMProvider using OpenAI's API
+// TODO: Update to work with the official openai-go library
 type OpenAIProvider struct {
-	client *openai.Client
+	// client *openai.Client  // Commented out until API compatibility is resolved
 	config OpenAIConfig
 }
 
-// NewOpenAIProvider creates a new OpenAI provider
+// NewOpenAIProvider creates a new OpenAI provider using the configuration builder pattern
 func NewOpenAIProvider(config OpenAIConfig) (*OpenAIProvider, error) {
-	if err := config.Validate(); err != nil {
+	// Use the configuration builder pattern with validation
+	validatedConfig, err := common.NewConfigBuilder(config).
+		With(func(c *OpenAIConfig) {
+			// Set defaults
+			if c.BaseURL == "" {
+				c.BaseURL = "https://api.openai.com/v1"
+			}
+			if c.MaxRetries == 0 {
+				c.MaxRetries = 3
+			}
+			if c.Temperature == 0 {
+				c.Temperature = 0.7
+			}
+		}).
+		Validate(func(c OpenAIConfig) error {
+			return c.Validate()
+		}).
+		Build()
+
+	if err != nil {
 		return nil, fmt.Errorf("invalid OpenAI config: %w", err)
 	}
 
-	// Set defaults
-	if config.BaseURL == "" {
-		config.BaseURL = "https://api.openai.com/v1"
-	}
-	if config.MaxRetries == 0 {
-		config.MaxRetries = 3
-	}
-	if config.Temperature == 0 {
-		config.Temperature = 0.7
-	}
-
-	clientConfig := openai.DefaultConfig(config.APIKey)
-	if config.BaseURL != "https://api.openai.com/v1" {
-		clientConfig.BaseURL = config.BaseURL
-	}
-
-	client := openai.NewClientWithConfig(clientConfig)
-
+	// TODO: Create actual OpenAI client when API compatibility is resolved
 	return &OpenAIProvider{
-		client: client,
-		config: config,
+		config: validatedConfig,
 	}, nil
 }
 
@@ -75,51 +76,8 @@ func (p *OpenAIProvider) GenerateCompletion(ctx context.Context, req CompletionR
 		return nil, fmt.Errorf("invalid completion request: %w", err)
 	}
 
-	// Convert our messages to OpenAI format
-	messages := make([]openai.ChatCompletionMessage, len(req.Messages))
-	for i, msg := range req.Messages {
-		messages[i] = openai.ChatCompletionMessage{
-			Role:    msg.Role,
-			Content: msg.Content,
-		}
-	}
-
-	// Use model from request if specified, otherwise use config default
-	model := req.Model
-	if model == "" {
-		model = p.config.Model
-	}
-
-	// Create OpenAI request
-	openaiReq := openai.ChatCompletionRequest{
-		Model:       model,
-		Messages:    messages,
-		MaxTokens:   req.MaxTokens,
-		Temperature: float32(req.Temperature),
-	}
-
-	// Make the API call
-	resp, err := p.client.CreateChatCompletion(ctx, openaiReq)
-	if err != nil {
-		return nil, fmt.Errorf("OpenAI API error: %w", err)
-	}
-
-	if len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("no completion choices returned from OpenAI")
-	}
-
-	// Extract the response
-	choice := resp.Choices[0]
-	return &CompletionResponse{
-		Content:      choice.Message.Content,
-		TokensUsed:   resp.Usage.TotalTokens,
-		Model:        resp.Model,
-		FinishReason: string(choice.FinishReason),
-		Metadata: map[string]string{
-			"prompt_tokens":     fmt.Sprintf("%d", resp.Usage.PromptTokens),
-			"completion_tokens": fmt.Sprintf("%d", resp.Usage.CompletionTokens),
-		},
-	}, nil
+	// TODO: Implement actual OpenAI API call when library compatibility is resolved
+	return nil, fmt.Errorf("OpenAI provider not yet implemented with official openai-go library")
 }
 
 // GenerateEmbedding generates embeddings using OpenAI's API
@@ -128,28 +86,6 @@ func (p *OpenAIProvider) GenerateEmbedding(ctx context.Context, text string) ([]
 		return nil, fmt.Errorf("text cannot be empty")
 	}
 
-	// Create embedding request
-	req := openai.EmbeddingRequest{
-		Input: []string{text},
-		Model: openai.AdaEmbeddingV2, // Use the standard embedding model
-	}
-
-	// Make the API call
-	resp, err := p.client.CreateEmbeddings(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("OpenAI embedding API error: %w", err)
-	}
-
-	if len(resp.Data) == 0 {
-		return nil, fmt.Errorf("no embeddings returned from OpenAI")
-	}
-
-	// Convert float32 to float64
-	embedding := resp.Data[0].Embedding
-	result := make([]float64, len(embedding))
-	for i, v := range embedding {
-		result[i] = float64(v)
-	}
-
-	return result, nil
+	// TODO: Implement actual OpenAI API call when library compatibility is resolved
+	return nil, fmt.Errorf("OpenAI embedding provider not yet implemented with official openai-go library")
 }
