@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/iainlowe/capn/internal/config"
+	"github.com/iainlowe/capn/internal/task"
 )
 
 // GlobalOptions holds all global command-line options
@@ -49,7 +50,8 @@ type StatusCmd struct{}
 
 func (s *StatusCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
 	logger.Info("Checking status")
-	// TODO: Implement status logic
+	// TODO: Implement status logic - for now just basic message
+	fmt.Println("Status: No tasks configured yet")
 	return nil
 }
 
@@ -63,6 +65,56 @@ func (a *AgentsCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
 	return nil
 }
 
+// TasksCmd represents the tasks command group
+type TasksCmd struct {
+	List TasksListCmd `cmd:"" help:"List all tasks with optional filtering"`
+	Show TasksShowCmd `cmd:"" help:"Show detailed task information"`
+	Logs TasksLogsCmd `cmd:"" help:"Show task execution logs and agent communications"`
+}
+
+// TasksListCmd represents the tasks list command
+type TasksListCmd struct {
+	Status   []string `help:"Filter by status (queued,running,completed,failed,cancelled)" short:"s"`
+	Keywords []string `help:"Filter by keywords in goal" short:"k"`
+	Limit    int      `help:"Limit number of results" default:"50"`
+}
+
+func (t *TasksListCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
+	logger.Info("Listing tasks", zap.Strings("status", t.Status), zap.Strings("keywords", t.Keywords))
+	
+	// TODO: Implement task listing - for now show placeholder
+	fmt.Println("Tasks listing not yet implemented")
+	return nil
+}
+
+// TasksShowCmd represents the tasks show command
+type TasksShowCmd struct {
+	TaskID string `arg:"" help:"Task ID to show details for"`
+}
+
+func (t *TasksShowCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
+	logger.Info("Showing task details", zap.String("task_id", t.TaskID))
+	
+	// TODO: Implement task details - for now show placeholder
+	fmt.Printf("Task details for %s not yet implemented\n", t.TaskID)
+	return nil
+}
+
+// TasksLogsCmd represents the tasks logs command
+type TasksLogsCmd struct {
+	TaskID string `arg:"" help:"Task ID to show logs for"`
+	Level  string `help:"Filter by log level (debug,info,warn,error)" short:"l"`
+	Tail   int    `help:"Show last N log entries" short:"n" default:"100"`
+}
+
+func (t *TasksLogsCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
+	logger.Info("Showing task logs", zap.String("task_id", t.TaskID))
+	
+	// TODO: Implement task logs - for now show placeholder
+	fmt.Printf("Task logs for %s not yet implemented\n", t.TaskID)
+	return nil
+}
+
 // MCPCmd represents the mcp command
 type MCPCmd struct{}
 
@@ -72,19 +124,20 @@ func (m *MCPCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
 	// TODO: Implement MCP server management logic
 	return nil
 }
-
 // CLI represents the main CLI structure
 type CLI struct {
 	GlobalOptions
 
 	Execute ExecuteCmd `cmd:"" help:"Plan and execute goals (use --dry-run for planning only)"`
 	Status  StatusCmd  `cmd:"" help:"Show current operation status"`
+	Tasks   TasksCmd   `cmd:"" help:"Manage and query tasks"`
 	Agents  AgentsCmd  `cmd:"" help:"Manage agent configurations"`
 	MCP     MCPCmd     `cmd:"" help:"Manage MCP server connections"`
 
 	output       io.Writer
 	logger       *zap.Logger
 	config       *config.Config
+	taskStorage  task.TaskStorage
 	callback     func(*GlobalOptions)
 	exitOverride bool
 	skipConfig   bool // Skip config loading for tests
@@ -95,6 +148,7 @@ func NewCLI() *CLI {
 	return &CLI{
 		output:       os.Stdout,
 		exitOverride: true, // Default to true for tests
+		taskStorage:  task.NewInMemoryStorage(), // Initialize with in-memory storage
 	}
 }
 
