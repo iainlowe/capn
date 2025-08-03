@@ -140,6 +140,98 @@ func TestConfig_Validate(t *testing.T) {
 			expectError: true,
 			errorMsg:    "parallel must be positive",
 		},
+		{
+			name: "OpenAI config with valid settings",
+			config: &Config{
+				Global: GlobalConfig{
+					Parallel: 5,
+				},
+				Captain: CaptainConfig{
+					MaxConcurrentAgents: 5,
+					PlanningTimeout:     30 * time.Second,
+				},
+				OpenAI: OpenAIConfig{
+					APIKey:      "test-key",
+					Model:       "gpt-3.5-turbo",
+					Temperature: 0.7,
+					MaxRetries:  3,
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "OpenAI config with missing model",
+			config: &Config{
+				Global: GlobalConfig{
+					Parallel: 5,
+				},
+				Captain: CaptainConfig{
+					MaxConcurrentAgents: 5,
+					PlanningTimeout:     30 * time.Second,
+				},
+				OpenAI: OpenAIConfig{
+					APIKey: "test-key",
+					Model:  "", // missing model
+				},
+			},
+			expectError: true,
+			errorMsg:    "openai model cannot be empty when api_key is set",
+		},
+		{
+			name: "OpenAI config with invalid temperature",
+			config: &Config{
+				Global: GlobalConfig{
+					Parallel: 5,
+				},
+				Captain: CaptainConfig{
+					MaxConcurrentAgents: 5,
+					PlanningTimeout:     30 * time.Second,
+				},
+				OpenAI: OpenAIConfig{
+					APIKey:      "test-key",
+					Model:       "gpt-3.5-turbo",
+					Temperature: 2.0, // invalid temperature > 1
+				},
+			},
+			expectError: true,
+			errorMsg:    "openai temperature must be between 0 and 1",
+		},
+		{
+			name: "OpenAI config with negative max retries",
+			config: &Config{
+				Global: GlobalConfig{
+					Parallel: 5,
+				},
+				Captain: CaptainConfig{
+					MaxConcurrentAgents: 5,
+					PlanningTimeout:     30 * time.Second,
+				},
+				OpenAI: OpenAIConfig{
+					APIKey:     "test-key",
+					Model:      "gpt-3.5-turbo",
+					MaxRetries: -1, // negative retries
+				},
+			},
+			expectError: true,
+			errorMsg:    "openai max_retries cannot be negative",
+		},
+		{
+			name: "OpenAI config with empty API key (should not validate OpenAI)",
+			config: &Config{
+				Global: GlobalConfig{
+					Parallel: 5,
+				},
+				Captain: CaptainConfig{
+					MaxConcurrentAgents: 5,
+					PlanningTimeout:     30 * time.Second,
+				},
+				OpenAI: OpenAIConfig{
+					APIKey: "", // empty API key, so OpenAI validation should be skipped
+					Model:  "", // this would normally be invalid, but should be ignored
+				},
+			},
+			expectError: false,
+		},
 	}
 	
 	for _, tt := range tests {
