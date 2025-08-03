@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/iainlowe/capn/internal/captain"
 	"github.com/iainlowe/capn/internal/config"
 )
 
@@ -20,6 +22,117 @@ type GlobalOptions struct {
 	DryRun   bool          `help:"Plan without execution"`
 	Parallel int           `help:"Maximum parallel agents" short:"p" default:"5"`
 	Timeout  time.Duration `help:"Global timeout duration" default:"5m"`
+}
+
+// PlanCmd represents the plan command for goal analysis and execution planning
+type PlanCmd struct {
+	Goal string `arg:"" help:"Goal to analyze and create execution plan for"`
+}
+
+func (p *PlanCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
+	logger.Info("Creating execution plan", zap.String("goal", p.Goal))
+	
+	// Load configuration
+	var cfg *config.Config
+	var err error
+	
+	if globals.Config != "" {
+		cfg, err = config.LoadConfig(globals.Config)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+	} else {
+		cfg = config.NewConfig()
+	}
+
+	// Check if OpenAI API key is configured
+	if cfg.Captain.OpenAIAPIKey == "" {
+		fmt.Println("OpenAI API key not configured. Set it in config file or OPENAI_API_KEY environment variable.")
+		fmt.Println("Running in demonstration mode with mock planning...")
+		
+		// Show what the plan would look like
+		fmt.Printf("\n=== EXECUTION PLAN FOR: %s ===\n", p.Goal)
+		fmt.Println("Goal Analysis: This would use OpenAI to break down the goal into actionable tasks")
+		fmt.Println("\nSample Plan Structure:")
+		fmt.Println("1. Task decomposition using chain-of-thought reasoning")
+		fmt.Println("2. Dependency analysis and task ordering") 
+		fmt.Println("3. Resource allocation and timing estimates")
+		fmt.Println("4. Validation and feasibility checking")
+		fmt.Println("\nTo enable full LLM-powered planning, configure your OpenAI API key.")
+		return nil
+	}
+
+	// Create captain configuration
+	captainConfig := &captain.Config{
+		OpenAIAPIKey:        cfg.Captain.OpenAIAPIKey,
+		Model:               cfg.Captain.Model,
+		MaxTokens:           cfg.Captain.MaxTokens,
+		Temperature:         cfg.Captain.Temperature,
+		MaxConcurrentAgents: cfg.Captain.MaxConcurrentAgents,
+		PlanningTimeout:     cfg.Captain.PlanningTimeout,
+		RetryAttempts:       cfg.Captain.RetryAttempts,
+		RetryDelay:          cfg.Captain.RetryDelay,
+	}
+
+	// Create OpenAI provider
+	llmProvider, err := captain.NewOpenAIProvider(captainConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create OpenAI provider: %w", err)
+	}
+
+	// Create Captain
+	capt, err := captain.NewCaptain("main-captain", captainConfig, llmProvider, logger)
+	if err != nil {
+		return fmt.Errorf("failed to create captain: %w", err)
+	}
+	defer capt.Shutdown(nil)
+
+	// Create execution plan
+	ctx := context.Background()
+	plan, err := capt.PlanGoal(ctx, p.Goal)
+	if err != nil {
+		return fmt.Errorf("failed to create plan: %w", err)
+	}
+
+	// Display the plan
+	fmt.Printf("\n=== EXECUTION PLAN ===\n")
+	fmt.Printf("Goal: %s\n", plan.Goal)
+	fmt.Printf("Plan ID: %s\n", plan.ID)
+	fmt.Printf("Created: %s\n", plan.CreatedAt.Format(time.RFC3339))
+	fmt.Printf("Estimated Duration: %s\n", plan.EstimatedDuration)
+	
+	if plan.Reasoning != "" {
+		fmt.Printf("\n=== REASONING ===\n%s\n", plan.Reasoning)
+	}
+
+	fmt.Printf("\n=== TASKS (%d) ===\n", len(plan.Tasks))
+	for i, task := range plan.Tasks {
+		fmt.Printf("\n%d. %s (ID: %s)\n", i+1, task.Title, task.ID)
+		fmt.Printf("   Description: %s\n", task.Description)
+		if task.Command != "" {
+			fmt.Printf("   Command: %s\n", task.Command)
+		}
+		if len(task.Dependencies) > 0 {
+			fmt.Printf("   Dependencies: %v\n", task.Dependencies)
+		}
+		fmt.Printf("   Duration: %s\n", task.EstimatedDuration)
+		fmt.Printf("   Priority: %d\n", task.Priority)
+	}
+
+	// Validate the plan
+	if err := capt.ValidatePlan(ctx, plan); err != nil {
+		fmt.Printf("\n⚠️  Plan validation warnings: %s\n", err.Error())
+	} else {
+		fmt.Printf("\n✅ Plan validation: PASSED\n")
+	}
+
+	fmt.Printf("\n=== SUMMARY ===\n")
+	fmt.Printf("Total tasks: %d\n", len(plan.Tasks))
+	fmt.Printf("Estimated time: %s\n", plan.EstimatedDuration)
+	fmt.Printf("\nTo execute this plan, use: capn execute \"%s\"\n", p.Goal)
+	fmt.Printf("To execute in dry-run mode, use: capn execute --dry-run \"%s\"\n", p.Goal)
+
+	return nil
 }
 
 // ExecuteCmd represents the execute command (with optional planning mode)
@@ -34,12 +147,80 @@ func (e *ExecuteCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
 	
 	if planningMode {
 		logger.Info("Creating plan", zap.String("goal", e.Goal))
-		fmt.Printf("Planning: %s\n", e.Goal)
-		// TODO: Implement planning logic
+		
+		// Load configuration
+		var cfg *config.Config
+		var err error
+		
+		if globals.Config != "" {
+			cfg, err = config.LoadConfig(globals.Config)
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+		} else {
+			cfg = config.NewConfig()
+		}
+
+		// Check if OpenAI API key is configured
+		if cfg.Captain.OpenAIAPIKey == "" {
+			fmt.Printf("Planning: %s (Demo mode - OpenAI not configured)\n", e.Goal)
+			fmt.Println("Would create detailed execution plan using LLM-powered analysis...")
+			return nil
+		}
+
+		// Create captain configuration
+		captainConfig := &captain.Config{
+			OpenAIAPIKey:        cfg.Captain.OpenAIAPIKey,
+			Model:               cfg.Captain.Model,
+			MaxTokens:           cfg.Captain.MaxTokens,
+			Temperature:         cfg.Captain.Temperature,
+			MaxConcurrentAgents: cfg.Captain.MaxConcurrentAgents,
+			PlanningTimeout:     cfg.Captain.PlanningTimeout,
+			RetryAttempts:       cfg.Captain.RetryAttempts,
+			RetryDelay:          cfg.Captain.RetryDelay,
+		}
+
+		// Create OpenAI provider
+		llmProvider, err := captain.NewOpenAIProvider(captainConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create OpenAI provider: %w", err)
+		}
+
+		// Create Captain
+		capt, err := captain.NewCaptain("main-captain", captainConfig, llmProvider, logger)
+		if err != nil {
+			return fmt.Errorf("failed to create captain: %w", err)
+		}
+		defer capt.Shutdown(context.Background())
+
+		// Create and execute plan in dry-run mode
+		ctx := context.Background()
+		plan, err := capt.PlanGoal(ctx, e.Goal)
+		if err != nil {
+			return fmt.Errorf("failed to create plan: %w", err)
+		}
+
+		fmt.Printf("=== DRY RUN EXECUTION PLAN ===\n")
+		fmt.Printf("Goal: %s\n", plan.Goal)
+		
+		results, err := capt.ExecutePlan(ctx, plan, true)
+		if err != nil {
+			return fmt.Errorf("failed to execute dry run: %w", err)
+		}
+
+		fmt.Printf("\n=== DRY RUN RESULTS ===\n") 
+		for _, result := range results {
+			status := "✅"
+			if !result.Success {
+				status = "❌"
+			}
+			fmt.Printf("%s %s\n", status, result.Output)
+		}
+		
 	} else {
 		logger.Info("Executing", zap.String("goal", e.Goal))
 		fmt.Printf("Executing: %s\n", e.Goal)
-		// TODO: Implement execution logic
+		// TODO: Implement actual execution logic with crew agents
 	}
 	return nil
 }
@@ -77,6 +258,7 @@ func (m *MCPCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
 type CLI struct {
 	GlobalOptions
 
+	Plan    PlanCmd    `cmd:"" help:"Analyze goal and create intelligent execution plan"`
 	Execute ExecuteCmd `cmd:"" help:"Plan and execute goals (use --dry-run for planning only)"`
 	Status  StatusCmd  `cmd:"" help:"Show current operation status"`
 	Agents  AgentsCmd  `cmd:"" help:"Manage agent configurations"`

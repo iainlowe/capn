@@ -21,6 +21,12 @@ type GlobalConfig struct {
 type CaptainConfig struct {
 	MaxConcurrentAgents int           `yaml:"max_concurrent_agents"`
 	PlanningTimeout     time.Duration `yaml:"planning_timeout"`
+	OpenAIAPIKey        string        `yaml:"openai_api_key"`
+	Model               string        `yaml:"model"`
+	MaxTokens           int           `yaml:"max_tokens"`
+	Temperature         float32       `yaml:"temperature"`
+	RetryAttempts       int           `yaml:"retry_attempts"`
+	RetryDelay          time.Duration `yaml:"retry_delay"`
 }
 
 // CrewConfig holds Crew agent configuration
@@ -54,6 +60,11 @@ func NewConfig() *Config {
 		Captain: CaptainConfig{
 			MaxConcurrentAgents: 5,
 			PlanningTimeout:     30 * time.Second,
+			Model:               "gpt-4",
+			MaxTokens:           2000,
+			Temperature:         0.7,
+			RetryAttempts:       3,
+			RetryDelay:          time.Second,
 		},
 		Crew: CrewConfig{
 			Timeouts: make(map[string]time.Duration),
