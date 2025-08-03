@@ -76,7 +76,14 @@ func (f *FileAgent) Execute(ctx context.Context, task agents.Task) agents.Result
 			},
 		}
 	}
-	pattern, _ := task.Data["pattern"].(string)
+	patternVal, ok := task.Data["pattern"].(string)
+	var pattern string
+	if ok {
+		pattern = patternVal
+	} else {
+		// pattern is missing or not a string; default to empty string
+		pattern = ""
+	}
 	
 	switch task.Type {
 	case "file_analysis":
