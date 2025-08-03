@@ -61,12 +61,22 @@ func (f *FileAgent) Execute(ctx context.Context, task agents.Task) agents.Result
 	startTime := time.Now()
 	
 	// Extract task data
-	path, _ := task.Data["path"].(string)
+	pathVal, ok := task.Data["path"]
+	path, okStr := pathVal.(string)
+	if !ok || !okStr || path == "" {
+		return agents.Result{
+			TaskID:    task.ID,
+			Success:   false,
+			Output:    "FileAgent error: missing or invalid 'path' in task data",
+			Duration:  0,
+			Timestamp: time.Now(),
+			Data: map[string]interface{}{
+				"agent_type": "file",
+				"operation":  task.Type,
+			},
+		}
+	}
 	pattern, _ := task.Data["pattern"].(string)
-	
-	// Simulate file operation based on task type
-	var output string
-	var success bool = true
 	
 	switch task.Type {
 	case "file_analysis":
