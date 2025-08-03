@@ -8,6 +8,28 @@ import (
 	"github.com/iainlowe/capn/internal/agents"
 )
 
+// CrewAgentFactory creates crew agents
+type CrewAgentFactory struct{}
+
+// NewCrewAgentFactory creates a new crew agent factory
+func NewCrewAgentFactory() *CrewAgentFactory {
+	return &CrewAgentFactory{}
+}
+
+// CreateAgent creates a crew agent of the specified type
+func (f *CrewAgentFactory) CreateAgent(id, name string, agentType agents.AgentType) (agents.Agent, error) {
+	switch agentType {
+	case agents.AgentTypeFile:
+		return NewFileAgent(id, name), nil
+	case agents.AgentTypeNetwork:
+		return NewNetworkAgent(id, name), nil  
+	case agents.AgentTypeResearch:
+		return NewResearchAgent(id, name), nil
+	default:
+		return nil, fmt.Errorf("unsupported crew agent type: %s", agentType)
+	}
+}
+
 // FileAgent handles file system operations
 type FileAgent struct {
 	*agents.BaseAgent
