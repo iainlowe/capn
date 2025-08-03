@@ -18,6 +18,7 @@ Capn is an LLM-based CLI agent system built in Go that orchestrates intelligent 
 7. **Test Quality**: Write comprehensive, meaningful tests that cover edge cases and error conditions
 
 ### TDD Workflow
+
 - Write a failing test
 - Run tests to confirm failure
 - Write minimal implementation to pass the test
@@ -27,6 +28,7 @@ Capn is an LLM-based CLI agent system built in Go that orchestrates intelligent 
 - Repeat for next feature/requirement
 
 ## Coding Standards
+
 - Follow established patterns in the codebase
 - Use appropriate testing frameworks for the language/technology stack
 - Maintain clean, readable code
@@ -36,6 +38,7 @@ Capn is an LLM-based CLI agent system built in Go that orchestrates intelligent 
 - Include integration tests for system boundaries
 
 ## Testing Guidelines
+
 - Unit tests should be fast, isolated, and deterministic
 - Test both happy path and error scenarios
 - Use descriptive assertions that explain what went wrong when they fail
@@ -44,6 +47,7 @@ Capn is an LLM-based CLI agent system built in Go that orchestrates intelligent 
 - Never commit code that breaks existing tests
 
 ## Shell Command Guidelines
+
 - **Always prefix shell commands with `timeout`** using reasonable durations:
   - Quick commands (ls, cat, echo): `timeout 10s`
   - Test runs: `timeout 300s` (5 minutes)
@@ -55,6 +59,7 @@ Capn is an LLM-based CLI agent system built in Go that orchestrates intelligent 
 - Example: `timeout 30s npm test` instead of just `npm test`
 
 ## Go Coding Standards
+
 - **Follow Go conventions**: Use `gofmt`, `goimports`, and `golint` for code formatting and linting
 - **Package naming**: Use short, lowercase package names without underscores
 - **Error handling**: Always handle errors explicitly; use `if err != nil` pattern
@@ -98,6 +103,7 @@ Follow the standard Go project layout:
 ```
 
 ## Go Testing Guidelines
+
 - **Test file naming**: Use `_test.go` suffix for test files
 - **Test function naming**: Use `TestFunctionName` format
 - **Benchmark tests**: Use `BenchmarkFunctionName` format
@@ -108,6 +114,7 @@ Follow the standard Go project layout:
 - **Integration tests**: Use build tags (`// +build integration`) to separate unit and integration tests
 
 ## Project Management Guidelines
+
 - **Directory Creation**: Only create directories that are immediately needed and will be used
 - **Cleanup**: Always clean up temporary files, unused directories, and resources before ending your turn
 - **Minimal Structure**: Start with minimal directory structure and expand only as requirements emerge

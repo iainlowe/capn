@@ -36,18 +36,21 @@ Capn maintains rich context about projects, user preferences, and historical int
 The Captain is the primary decision-making entity responsible for:
 
 #### Planning Engine
+
 - **Goal Decomposition**: Break down complex objectives into manageable subtasks
 - **Task Analysis**: Evaluate task complexity, dependencies, and resource requirements
 - **Strategy Formation**: Create optimal execution strategies based on available resources
 - **Risk Assessment**: Identify potential failure points and mitigation strategies
 
 #### Crew Management
+
 - **Agent Spawning**: Dynamically create specialized sub-agents based on task requirements
 - **Resource Allocation**: Distribute computational resources and assign priorities
 - **Task Distribution**: Intelligently assign tasks to crew members based on capabilities
 - **Progress Monitoring**: Track execution status and performance metrics
 
 #### Communication Hub
+
 - **Inter-Agent Messaging**: Facilitate communication between crew members
 - **Status Aggregation**: Collect and synthesize progress reports
 - **Decision Coordination**: Resolve conflicts and make real-time adjustments
@@ -57,6 +60,7 @@ The Captain is the primary decision-making entity responsible for:
 Crew agents are lightweight, specialized workers that handle specific task categories:
 
 #### Agent Types
+
 - **Research Agent**: Information gathering and analysis
 - **Code Agent**: Software development and code manipulation
 - **File Agent**: File system operations and data management
@@ -64,6 +68,7 @@ Crew agents are lightweight, specialized workers that handle specific task categ
 - **Analysis Agent**: Data processing and insight generation
 
 #### Core Capabilities
+
 - **Task Specialization**: Optimized for specific domain operations
 - **Autonomous Execution**: Independent task completion with minimal supervision
 - **Status Reporting**: Regular progress updates to the Captain
@@ -72,12 +77,14 @@ Crew agents are lightweight, specialized workers that handle specific task categ
 ### 3. MCP Server Integration
 
 #### Protocol Implementation
+
 - **MCP Client Library**: Native Go implementation of Model Context Protocol
 - **Server Discovery**: Automatic detection and registration of available MCP servers
 - **Capability Mapping**: Dynamic discovery of server capabilities and tools
 - **Load Balancing**: Intelligent distribution of requests across server instances
 
 #### Server Categories
+
 - **Knowledge Servers**: Access to specialized knowledge bases
 - **Tool Servers**: External tool integration (GitHub, databases, APIs)
 - **Processing Servers**: Computational services and data processing
@@ -178,12 +185,14 @@ type ExecutionPlan struct {
 ### 3. Planning Engine
 
 #### Planning Algorithms
+
 - **Dependency Resolution**: Topological sorting of task dependencies
 - **Resource Optimization**: Efficient allocation based on agent capabilities
 - **Timeline Estimation**: Predictive modeling for execution duration
 - **Risk Mitigation**: Failure scenario planning and recovery strategies
 
 #### Planning Process
+
 1. **Goal Analysis**: Parse and understand the high-level objective
 2. **Task Decomposition**: Break down into atomic, executable tasks
 3. **Dependency Mapping**: Identify task interdependencies
@@ -215,6 +224,7 @@ const (
 ```
 
 #### Communication Patterns
+
 - **Pub/Sub Messaging**: Event-driven communication using channels
 - **Direct Messaging**: Point-to-point communication for coordination
 - **Broadcast Updates**: System-wide status and configuration changes
@@ -241,6 +251,7 @@ type MCPManager struct {
 ```
 
 #### Tool Registry
+
 - **Dynamic Discovery**: Automatic tool detection from connected servers
 - **Capability Indexing**: Searchable index of available tools and functions
 - **Version Management**: Handle tool versioning and compatibility
@@ -249,24 +260,28 @@ type MCPManager struct {
 ## Key Features
 
 ### 1. Intelligent Planning
+
 - **Multi-step Reasoning**: Complex goal decomposition with logical reasoning
 - **Context Awareness**: Understand project context and constraints
 - **Adaptive Strategies**: Adjust plans based on real-time feedback
 - **Learning Capability**: Improve planning accuracy over time
 
 ### 2. Dynamic Agent Management
+
 - **Just-in-Time Spawning**: Create agents only when needed
 - **Capability-Based Selection**: Match agents to tasks based on capabilities
 - **Load Balancing**: Distribute work efficiently across available agents
 - **Graceful Scaling**: Handle varying workloads with automatic scaling
 
 ### 3. Robust Error Handling
+
 - **Failure Detection**: Early identification of task failures
 - **Automatic Recovery**: Retry mechanisms and alternative strategies
 - **Graceful Degradation**: Continue operation with reduced capabilities
 - **Comprehensive Logging**: Detailed error tracking and debugging information
 
 ### 4. Monitoring and Observability
+
 - **Real-time Dashboards**: Live status monitoring and metrics
 - **Performance Analytics**: Agent performance and efficiency tracking
 - **Resource Utilization**: Monitor system resource consumption
@@ -325,18 +340,21 @@ capn "migrate this project from Docker Compose to Kubernetes with proper configu
 ## Implementation Phases
 
 ### Phase 1: Core Infrastructure
+
 - Basic CLI framework and configuration management
 - Captain agent with simple planning capabilities
 - Basic crew agent spawning and management
 - Message passing system implementation
 
 ### Phase 2: Advanced Planning
+
 - Sophisticated planning engine with dependency resolution
 - Task decomposition and strategy selection
 - Risk assessment and mitigation planning
 - Plan validation and optimization
 
 ### Phase 3: MCP Integration
+
 - MCP protocol client implementation
 - Server discovery and tool registry
 - Dynamic capability integration
