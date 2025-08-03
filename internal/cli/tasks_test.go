@@ -151,8 +151,8 @@ func TestTasksCmd_Logs(t *testing.T) {
 	assert.Contains(t, output, "Starting task execution")
 	assert.Contains(t, output, "Warning: potential issue detected")
 	assert.Contains(t, output, "TestAgent")
-	assert.Contains(t, output, "info")
-	assert.Contains(t, output, "warn")
+	assert.Contains(t, output, "INFO")
+	assert.Contains(t, output, "WARN")
 }
 
 func TestStatusCmd_WithTasks(t *testing.T) {

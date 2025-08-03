@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -29,17 +31,17 @@ type ExecuteCmd struct {
 	Goal     string `arg:"" help:"Goal to execute"`
 }
 
-func (e *ExecuteCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
+func (e *ExecuteCmd) Run(globals *GlobalOptions, logger *zap.Logger, cli *CLI) error {
 	// Check if we're in planning mode (plan-only or global dry-run)
 	planningMode := e.PlanOnly || globals.DryRun
 	
 	if planningMode {
 		logger.Info("Creating plan", zap.String("goal", e.Goal))
-		fmt.Printf("Planning: %s\n", e.Goal)
+		fmt.Fprintf(cli.output, "Planning: %s\n", e.Goal)
 		// TODO: Implement planning logic
 	} else {
 		logger.Info("Executing", zap.String("goal", e.Goal))
-		fmt.Printf("Executing: %s\n", e.Goal)
+		fmt.Fprintf(cli.output, "Executing: %s\n", e.Goal)
 		// TODO: Implement execution logic
 	}
 	return nil
@@ -48,20 +50,53 @@ func (e *ExecuteCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
 // StatusCmd represents the status command
 type StatusCmd struct{}
 
-func (s *StatusCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
+func (s *StatusCmd) Run(globals *GlobalOptions, logger *zap.Logger, cli *CLI) error {
 	logger.Info("Checking status")
-	// TODO: Implement status logic - for now just basic message
-	fmt.Println("Status: No tasks configured yet")
-	return nil
-}
-
-// AgentsCmd represents the agents command
-type AgentsCmd struct{}
-
-func (a *AgentsCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
-	logger.Info("Managing agents")
-	fmt.Println("Managing agents")
-	// TODO: Implement agents management logic
+	
+	storage := cli.GetTaskStorage()
+	if storage == nil {
+		fmt.Println("No task storage configured")
+		return nil
+	}
+	
+	ctx := context.Background()
+	filter := task.TaskFilter{} // Empty filter to get all tasks
+	
+	tasks, err := storage.ListTasks(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("failed to list tasks: %w", err)
+	}
+	
+	// Count tasks by status
+	statusCounts := make(map[task.TaskStatus]int)
+	for _, task := range tasks {
+		statusCounts[task.Status]++
+	}
+	
+	total := len(tasks)
+	running := statusCounts[task.TaskStatusRunning]
+	completed := statusCounts[task.TaskStatusCompleted]
+	queued := statusCounts[task.TaskStatusQueued]
+	failed := statusCounts[task.TaskStatusFailed]
+	
+	fmt.Fprintf(cli.output, "%d tasks total: %d running, %d completed, %d queued", 
+		total, running, completed, queued)
+	
+	if failed > 0 {
+		fmt.Fprintf(cli.output, ", %d failed", failed)
+	}
+	fmt.Fprintln(cli.output)
+	
+	// Show current activity
+	if running > 0 {
+		for _, t := range tasks {
+			if t.Status == task.TaskStatusRunning {
+				fmt.Fprintf(cli.output, "Current activity: %s...\n", t.Goal)
+				break
+			}
+		}
+	}
+	
 	return nil
 }
 
@@ -79,11 +114,83 @@ type TasksListCmd struct {
 	Limit    int      `help:"Limit number of results" default:"50"`
 }
 
-func (t *TasksListCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
+func (t *TasksListCmd) Run(globals *GlobalOptions, logger *zap.Logger, cli *CLI) error {
 	logger.Info("Listing tasks", zap.Strings("status", t.Status), zap.Strings("keywords", t.Keywords))
 	
-	// TODO: Implement task listing - for now show placeholder
-	fmt.Println("Tasks listing not yet implemented")
+	storage := cli.GetTaskStorage()
+	if storage == nil {
+		fmt.Println("No task storage configured")
+		return nil
+	}
+	
+	ctx := context.Background()
+	filter := task.TaskFilter{
+		Keywords: t.Keywords,
+	}
+	
+	// Parse status filters
+	if len(t.Status) > 0 {
+		var statusFilters []task.TaskStatus
+		for _, s := range t.Status {
+			switch strings.ToLower(s) {
+			case "queued":
+				statusFilters = append(statusFilters, task.TaskStatusQueued)
+			case "running":
+				statusFilters = append(statusFilters, task.TaskStatusRunning)
+			case "completed":
+				statusFilters = append(statusFilters, task.TaskStatusCompleted)
+			case "failed":
+				statusFilters = append(statusFilters, task.TaskStatusFailed)
+			case "cancelled":
+				statusFilters = append(statusFilters, task.TaskStatusCancelled)
+			default:
+				return fmt.Errorf("invalid status: %s", s)
+			}
+		}
+		filter.Status = statusFilters
+	}
+	
+	tasks, err := storage.ListTasks(ctx, filter)
+	if err != nil {
+		return fmt.Errorf("failed to list tasks: %w", err)
+	}
+	
+	if len(tasks) == 0 {
+		fmt.Fprintln(cli.output, "No tasks found")
+		return nil
+	}
+	
+	// Limit results
+	if t.Limit > 0 && len(tasks) > t.Limit {
+		tasks = tasks[:t.Limit]
+	}
+	
+	// Display header
+	fmt.Fprintf(cli.output, "%-20s %-12s %-40s %s\n", "ID", "Status", "Goal", "Started")
+	fmt.Fprintln(cli.output, strings.Repeat("-", 80))
+	
+	// Display tasks
+	for _, task := range tasks {
+		elapsed := time.Since(task.Started)
+		var timeStr string
+		if elapsed.Hours() > 24 {
+			timeStr = fmt.Sprintf("%.0fd ago", elapsed.Hours()/24)
+		} else if elapsed.Hours() > 1 {
+			timeStr = fmt.Sprintf("%.0fh ago", elapsed.Hours())
+		} else if elapsed.Minutes() > 1 {
+			timeStr = fmt.Sprintf("%.0fm ago", elapsed.Minutes())
+		} else {
+			timeStr = fmt.Sprintf("%.0fs ago", elapsed.Seconds())
+		}
+		
+		goal := task.Goal
+		if len(goal) > 40 {
+			goal = goal[:37] + "..."
+		}
+		
+		fmt.Fprintf(cli.output, "%-20s %-12s %-40s %s\n", task.ID, task.Status, goal, timeStr)
+	}
+	
 	return nil
 }
 
@@ -92,11 +199,49 @@ type TasksShowCmd struct {
 	TaskID string `arg:"" help:"Task ID to show details for"`
 }
 
-func (t *TasksShowCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
+func (t *TasksShowCmd) Run(globals *GlobalOptions, logger *zap.Logger, cli *CLI) error {
 	logger.Info("Showing task details", zap.String("task_id", t.TaskID))
 	
-	// TODO: Implement task details - for now show placeholder
-	fmt.Printf("Task details for %s not yet implemented\n", t.TaskID)
+	storage := cli.GetTaskStorage()
+	if storage == nil {
+		fmt.Println("No task storage configured")
+		return nil
+	}
+	
+	ctx := context.Background()
+	details, err := storage.GetTaskDetails(ctx, t.TaskID)
+	if err != nil {
+		return fmt.Errorf("failed to get task details: %w", err)
+	}
+	
+	fmt.Fprintf(cli.output, "Task: %s\n", details.ID)
+	fmt.Fprintf(cli.output, "Goal: %s\n", details.Goal)
+	fmt.Fprintf(cli.output, "Status: %s", details.Status)
+	
+	if details.Progress > 0 {
+		fmt.Fprintf(cli.output, " (%.0f%% complete)", details.Progress)
+	}
+	fmt.Fprintln(cli.output)
+	
+	fmt.Fprintf(cli.output, "Started: %s\n", details.Started.Format("2006-01-02 15:04:05"))
+	if details.Finished != nil {
+		fmt.Fprintf(cli.output, "Finished: %s\n", details.Finished.Format("2006-01-02 15:04:05"))
+		duration := details.Finished.Sub(details.Started)
+		fmt.Fprintf(cli.output, "Duration: %s\n", duration.Round(time.Second))
+	}
+	
+	if details.Plan != "" {
+		fmt.Fprintf(cli.output, "Plan: %s\n", details.Plan)
+	}
+	
+	if details.TotalSteps > 0 {
+		fmt.Fprintf(cli.output, "Progress: %d/%d steps\n", details.CurrentStep, details.TotalSteps)
+	}
+	
+	if len(details.ActiveAgents) > 0 {
+		fmt.Fprintf(cli.output, "Active Agents: %s\n", strings.Join(details.ActiveAgents, ", "))
+	}
+	
 	return nil
 }
 
@@ -107,20 +252,89 @@ type TasksLogsCmd struct {
 	Tail   int    `help:"Show last N log entries" short:"n" default:"100"`
 }
 
-func (t *TasksLogsCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
+func (t *TasksLogsCmd) Run(globals *GlobalOptions, logger *zap.Logger, cli *CLI) error {
 	logger.Info("Showing task logs", zap.String("task_id", t.TaskID))
 	
-	// TODO: Implement task logs - for now show placeholder
-	fmt.Printf("Task logs for %s not yet implemented\n", t.TaskID)
+	storage := cli.GetTaskStorage()
+	if storage == nil {
+		fmt.Println("No task storage configured")
+		return nil
+	}
+	
+	ctx := context.Background()
+	logs, err := storage.GetTaskLogs(ctx, t.TaskID)
+	if err != nil {
+		return fmt.Errorf("failed to get task logs: %w", err)
+	}
+	
+	if len(logs) == 0 {
+		fmt.Fprintln(cli.output, "No logs found for task")
+		return nil
+	}
+	
+	// Filter by level if specified
+	if t.Level != "" {
+		var levelFilter task.LogLevel
+		switch strings.ToLower(t.Level) {
+		case "debug":
+			levelFilter = task.LogLevelDebug
+		case "info":
+			levelFilter = task.LogLevelInfo
+		case "warn":
+			levelFilter = task.LogLevelWarn
+		case "error":
+			levelFilter = task.LogLevelError
+		default:
+			return fmt.Errorf("invalid log level: %s", t.Level)
+		}
+		
+		var filteredLogs []task.LogEntry
+		for _, log := range logs {
+			if log.Level == levelFilter {
+				filteredLogs = append(filteredLogs, log)
+			}
+		}
+		logs = filteredLogs
+	}
+	
+	// Apply tail limit
+	if t.Tail > 0 && len(logs) > t.Tail {
+		logs = logs[len(logs)-t.Tail:]
+	}
+	
+	// Display logs
+	for _, log := range logs {
+		timestamp := log.Timestamp.Format("15:04:05")
+		level := strings.ToUpper(log.Level.String())
+		fmt.Fprintf(cli.output, "[%s] %s [%s] %s\n", timestamp, level, log.Agent, log.Message)
+		
+		// Display metadata if present
+		if len(log.Metadata) > 0 {
+			for k, v := range log.Metadata {
+				fmt.Fprintf(cli.output, "  %s: %v\n", k, v)
+			}
+		}
+	}
+	
+	return nil
+}
+
+// AgentsCmd represents the agents command
+type AgentsCmd struct{}
+
+func (a *AgentsCmd) Run(globals *GlobalOptions, logger *zap.Logger, cli *CLI) error {
+	logger.Info("Managing agents")
+	fmt.Fprintln(cli.output, "Managing agents")
+	// TODO: Implement agents management logic
 	return nil
 }
 
 // MCPCmd represents the mcp command
 type MCPCmd struct{}
 
-func (m *MCPCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
+func (m *MCPCmd) Run(globals *GlobalOptions, logger *zap.Logger, cli *CLI) error {
 	logger.Info("Managing MCP servers")
-	fmt.Println("Managing MCP servers")
+	fmt.Fprintln(cli.output, "Managing MCP servers")
 	// TODO: Implement MCP server management logic
 	return nil
 }
@@ -141,6 +355,11 @@ type CLI struct {
 	callback     func(*GlobalOptions)
 	exitOverride bool
 	skipConfig   bool // Skip config loading for tests
+}
+
+// GetTaskStorage returns the task storage instance
+func (c *CLI) GetTaskStorage() task.TaskStorage {
+	return c.taskStorage
 }
 
 // NewCLI creates a new CLI instance
@@ -185,6 +404,7 @@ func (c *CLI) Parse(args []string) error {
 		kong.Writers(c.output, c.output),
 		kong.Bind(&c.GlobalOptions), // Bind global options
 		kong.Bind(c.logger),         // Bind logger
+		kong.Bind(c),                // Bind CLI instance for access to storage
 	}
 	
 	// Add exit override for tests
