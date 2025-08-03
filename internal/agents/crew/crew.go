@@ -237,7 +237,21 @@ func (r *ResearchAgent) Execute(ctx context.Context, task agents.Task) agents.Re
 	startTime := time.Now()
 	
 	// Extract task data
-	topic, _ := task.Data["topic"].(string)
+	topicVal, ok := task.Data["topic"]
+	topic, okType := topicVal.(string)
+	if !ok || !okType || topic == "" {
+		return agents.Result{
+			TaskID:    task.ID,
+			Success:   false,
+			Output:    "ResearchAgent error: missing or invalid 'topic' in task data",
+			Duration:  time.Since(startTime),
+			Timestamp: time.Now(),
+			Data: map[string]interface{}{
+				"agent_type": "research",
+				"operation":  task.Type,
+			},
+		}
+	}
 	depthVal, ok := task.Data["depth"]
 	var depth string
 	if ok {
