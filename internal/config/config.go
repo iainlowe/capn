@@ -34,12 +34,22 @@ type MCPConfig struct {
 	RetryCount int           `yaml:"retry_count"`
 }
 
+// OpenAIConfig holds OpenAI configuration
+type OpenAIConfig struct {
+	APIKey      string  `yaml:"api_key"`
+	Model       string  `yaml:"model"`
+	BaseURL     string  `yaml:"base_url,omitempty"`
+	MaxRetries  int     `yaml:"max_retries"`
+	Temperature float64 `yaml:"temperature"`
+}
+
 // Config is the main configuration structure
 type Config struct {
 	Global  GlobalConfig  `yaml:"global"`
 	Captain CaptainConfig `yaml:"captain"`
 	Crew    CrewConfig    `yaml:"crew"`
 	MCP     MCPConfig     `yaml:"mcp"`
+	OpenAI  OpenAIConfig  `yaml:"openai"`
 }
 
 // NewConfig creates a new Config with default values
@@ -61,6 +71,11 @@ func NewConfig() *Config {
 		MCP: MCPConfig{
 			Timeout:    10 * time.Second,
 			RetryCount: 3,
+		},
+		OpenAI: OpenAIConfig{
+			Model:       "gpt-3.5-turbo",
+			MaxRetries:  3,
+			Temperature: 0.7,
 		},
 	}
 }
@@ -96,6 +111,19 @@ func (c *Config) Validate() error {
 
 	if c.Global.Parallel <= 0 {
 		return fmt.Errorf("parallel must be positive")
+	}
+
+	// Validate OpenAI config if API key is provided
+	if c.OpenAI.APIKey != "" {
+		if c.OpenAI.Model == "" {
+			return fmt.Errorf("openai model cannot be empty when api_key is set")
+		}
+		if c.OpenAI.Temperature < 0 || c.OpenAI.Temperature > 1 {
+			return fmt.Errorf("openai temperature must be between 0 and 1")
+		}
+		if c.OpenAI.MaxRetries < 0 {
+			return fmt.Errorf("openai max_retries cannot be negative")
+		}
 	}
 
 	return nil

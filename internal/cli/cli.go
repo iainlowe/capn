@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/iainlowe/capn/internal/captain"
 	"github.com/iainlowe/capn/internal/config"
 )
 
@@ -28,19 +30,97 @@ type ExecuteCmd struct {
 	Goal     string `arg:"" help:"Goal to execute"`
 }
 
-func (e *ExecuteCmd) Run(globals *GlobalOptions, logger *zap.Logger) error {
+func (e *ExecuteCmd) Run(globals *GlobalOptions, logger *zap.Logger, config *config.Config) error {
 	// Check if we're in planning mode (plan-only or global dry-run)
 	planningMode := e.PlanOnly || globals.DryRun
 	
-	if planningMode {
-		logger.Info("Creating plan", zap.String("goal", e.Goal))
-		fmt.Printf("Planning: %s\n", e.Goal)
-		// TODO: Implement planning logic
-	} else {
-		logger.Info("Executing", zap.String("goal", e.Goal))
-		fmt.Printf("Executing: %s\n", e.Goal)
-		// TODO: Implement execution logic
+	// Check if OpenAI is configured
+	if config.OpenAI.APIKey == "" {
+		if planningMode {
+			logger.Info("Creating basic plan (OpenAI not configured)", zap.String("goal", e.Goal))
+			fmt.Printf("Planning: %s\n", e.Goal)
+			fmt.Printf("Note: Set OPENAI_API_KEY environment variable or configure OpenAI in config file for LLM-powered planning.\n")
+			return nil
+		} else {
+			logger.Info("Basic execution (OpenAI not configured)", zap.String("goal", e.Goal))
+			fmt.Printf("Executing: %s\n", e.Goal)
+			fmt.Printf("Note: Set OPENAI_API_KEY environment variable or configure OpenAI in config file for intelligent planning.\n")
+			return nil
+		}
 	}
+
+	// Override config with environment variable if present
+	openaiConfig := captain.OpenAIConfig{
+		APIKey:      config.OpenAI.APIKey,
+		Model:       config.OpenAI.Model,
+		BaseURL:     config.OpenAI.BaseURL,
+		MaxRetries:  config.OpenAI.MaxRetries,
+		Temperature: config.OpenAI.Temperature,
+	}
+	
+	if envKey := os.Getenv("OPENAI_API_KEY"); envKey != "" {
+		openaiConfig.APIKey = envKey
+	}
+
+	// Create Captain
+	cap, err := captain.NewCaptain("main-captain", config, openaiConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create captain: %w", err)
+	}
+	defer cap.Stop()
+
+	// Create execution plan
+	logger.Info("Creating execution plan", zap.String("goal", e.Goal))
+	ctx := context.Background()
+	plan, err := cap.CreatePlan(ctx, e.Goal)
+	if err != nil {
+		return fmt.Errorf("failed to create plan: %w", err)
+	}
+
+	if planningMode {
+		logger.Info("Plan created successfully", zap.String("plan_id", plan.ID))
+		fmt.Printf("=== Execution Plan ===\n")
+		fmt.Printf("Goal: %s\n", plan.Goal)
+		fmt.Printf("Strategy: %s\n", plan.Strategy.Type)
+		fmt.Printf("Estimated Duration: %s\n", plan.Timeline.EstimatedDuration)
+		fmt.Printf("Tasks (%d):\n", len(plan.Tasks))
+		
+		for _, task := range plan.Tasks {
+			fmt.Printf("  [%s] %s (Priority: %s)\n", 
+				task.Type, task.Payload["description"], task.Priority)
+			if len(task.Dependencies) > 0 {
+				fmt.Printf("     Dependencies: %v\n", task.Dependencies)
+			}
+		}
+		fmt.Printf("\nNote: This is a dry run. Use without --plan-only or --dry-run to execute.\n")
+	} else {
+		logger.Info("Executing plan", zap.String("plan_id", plan.ID))
+		fmt.Printf("Executing plan: %s\n", plan.Goal)
+		
+		result, err := cap.ExecutePlan(ctx, plan, false)
+		if err != nil {
+			return fmt.Errorf("failed to execute plan: %w", err)
+		}
+
+		fmt.Printf("=== Execution Results ===\n")
+		fmt.Printf("Plan: %s\n", result.PlanID)
+		fmt.Printf("Success: %t\n", result.Success)
+		fmt.Printf("Duration: %s\n", result.Duration)
+		fmt.Printf("Tasks completed: %d\n", len(result.TaskResults))
+		
+		for _, taskResult := range result.TaskResults {
+			status := "✓"
+			if !taskResult.Success {
+				status = "✗"
+			}
+			fmt.Printf("  %s Task %s: %s\n", status, taskResult.TaskID, taskResult.Output)
+		}
+		
+		if !result.Success {
+			fmt.Printf("Execution completed with errors. Check logs for details.\n")
+		}
+	}
+	
 	return nil
 }
 
@@ -160,6 +240,9 @@ func (c *CLI) Parse(args []string) error {
 		c.config = config.NewConfig()
 		c.mergeOptionsWithConfig()
 	}
+	
+	// Bind config for commands that need it
+	ctx.Bind(c.config)
 	
 	// Call callback for testing
 	if c.callback != nil {
