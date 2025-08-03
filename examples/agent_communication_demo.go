@@ -9,15 +9,16 @@ import (
 	"github.com/iainlowe/capn/internal/agents/crew"
 )
 
-func main() {
-	fmt.Println("=== Capn Agent Communication System Demo ===")
-	fmt.Println("Demonstrating IRC/Slack-style agent communication")
-
-	// Initialize communication infrastructure
+// setupCommunicationInfrastructure initializes the message router and logger
+func setupCommunicationInfrastructure() (*agents.MessageRouter, *agents.MemoryCommunicationLogger) {
 	router := agents.NewMessageRouter()
 	logger := agents.NewMemoryCommunicationLogger()
 	router.SetLogger(logger)
+	return router, logger
+}
 
+// createAndRegisterAgents creates crew agents and registers them with the router
+func createAndRegisterAgents(router *agents.MessageRouter) (agents.Agent, agents.Agent, agents.Agent) {
 	// Create crew agents
 	fileAgent := crew.NewFileAgent("file-1", "FileAgent-1")
 	networkAgent := crew.NewNetworkAgent("net-1", "NetworkAgent-1")
@@ -40,8 +41,11 @@ func main() {
 	}
 
 	fmt.Printf("✓ Registered %d agents with the communication system\n", len(router.GetRegisteredAgents()))
+	return fileAgent, networkAgent, researchAgent
+}
 
-	// Simulate the communication scenario from the issue description
+// simulateCommunicationScenario demonstrates the IRC/Slack-style messaging between agents
+func simulateCommunicationScenario(logger *agents.MemoryCommunicationLogger, fileAgent, researchAgent agents.Agent) {
 	fmt.Println("\n=== Communication Scenario ===")
 
 	// 1. Captain asks FileAgent to analyze files
@@ -53,7 +57,7 @@ func main() {
 		Type:      agents.MessageTypeText,
 		Timestamp: time.Date(2025, 8, 3, 10, 15, 32, 0, time.UTC),
 	}
-	
+
 	// Manually log captain message (captain would be registered in full implementation)
 	logger.LogMessage("Captain", "file-1", captainToFile)
 	fmt.Println("Captain -> FileAgent-1: Analysis request sent")
@@ -63,7 +67,7 @@ func main() {
 	fileToCaptin := agents.Message{
 		ID:        "msg-2",
 		From:      "file-1",
-		To:        "Captain", 
+		To:        "Captain",
 		Content:   "Found 23 Go files, analyzing structure...",
 		Type:      agents.MessageTypeText,
 		Timestamp: time.Date(2025, 8, 3, 10, 15, 45, 0, time.UTC),
@@ -81,7 +85,7 @@ func main() {
 		Type:      agents.MessageTypeText,
 		Timestamp: time.Date(2025, 8, 3, 10, 16, 12, 0, time.UTC),
 	}
-	
+
 	if err := fileAgent.SendMessage("research-1", fileToResearch); err != nil {
 		log.Fatalf("Failed to send message: %v", err)
 	}
@@ -91,26 +95,30 @@ func main() {
 	time.Sleep(100 * time.Millisecond)
 	researchToFile := agents.Message{
 		ID:        "msg-4",
-		From:      "research-1", 
+		From:      "research-1",
 		To:        "file-1",
 		Content:   "Sure! Found 5 relevant patterns in Go documentation",
 		Type:      agents.MessageTypeText,
 		Timestamp: time.Date(2025, 8, 3, 10, 16, 28, 0, time.UTC),
 	}
-	
+
 	if err := researchAgent.SendMessage("file-1", researchToFile); err != nil {
 		log.Fatalf("Failed to send message: %v", err)
 	}
 	fmt.Println("ResearchAgent-1 -> FileAgent-1: Research results sent")
+}
 
-	// Display the complete communication log
+// displayCommunicationLog shows all messages in the communication log
+func displayCommunicationLog(logger *agents.MemoryCommunicationLogger) {
 	fmt.Println("\n=== Complete Communication Log ===")
 	allMessages := logger.GetAllMessages()
 	for _, msgLog := range allMessages {
 		fmt.Println(msgLog.Formatted)
 	}
+}
 
-	// Demonstrate search capabilities  
+// demonstrateSearchCapabilities shows the message search functionality
+func demonstrateSearchCapabilities(logger *agents.MemoryCommunicationLogger) {
 	fmt.Println("\n=== Search Capabilities ===")
 	searchResults := logger.SearchMessages("Go files")
 	fmt.Printf("Search for 'Go files' found %d messages:\n", len(searchResults))
@@ -123,26 +131,32 @@ func main() {
 	for _, result := range searchResults {
 		fmt.Printf("  - %s\n", result.Formatted)
 	}
+}
 
-	// Show agent history
+// showAgentHistory displays communication history for a specific agent
+func showAgentHistory(logger *agents.MemoryCommunicationLogger) {
 	fmt.Println("\n=== Agent Communication History ===")
 	fileHistory := logger.GetHistory("file-1")
 	fmt.Printf("FileAgent-1 communication history (%d messages):\n", len(fileHistory))
 	for _, msgLog := range fileHistory {
 		fmt.Printf("  - %s\n", msgLog.Formatted)
 	}
+}
 
-	// Demonstrate agent health and status
+// demonstrateHealthStatus shows agent status and health information
+func demonstrateHealthStatus(router *agents.MessageRouter) {
 	fmt.Println("\n=== Agent Status and Health ===")
 	registeredAgents := router.GetRegisteredAgents()
 	for _, agent := range registeredAgents {
 		status := agent.Status()
 		health := agent.Health()
-		fmt.Printf("%s (%s): Status=%s, Health=%s\n", 
+		fmt.Printf("%s (%s): Status=%s, Health=%s\n",
 			agent.Name(), agent.ID(), status, health.Status)
 	}
+}
 
-	// Demonstrate broadcast messaging
+// demonstrateBroadcastMessaging shows broadcast functionality to all agents
+func demonstrateBroadcastMessaging(router *agents.MessageRouter, logger *agents.MemoryCommunicationLogger) {
 	fmt.Println("\n=== Broadcast Messaging ===")
 	broadcastMsg := agents.Message{
 		ID:        "msg-broadcast",
@@ -152,8 +166,9 @@ func main() {
 		Type:      agents.MessageTypeText,
 		Timestamp: time.Now(),
 	}
-	
+
 	// Manually broadcast since we don't have a system agent registered
+	registeredAgents := router.GetRegisteredAgents()
 	for _, agent := range registeredAgents {
 		if agent.ID() != "system" { // Don't send to self
 			copyMsg := broadcastMsg
@@ -166,8 +181,43 @@ func main() {
 			}
 		}
 	}
+}
 
+// printFinalSummary displays the completion summary
+func printFinalSummary(logger *agents.MemoryCommunicationLogger) {
 	fmt.Println("\n=== Demo Complete ===")
 	fmt.Printf("Total messages logged: %d\n", len(logger.GetAllMessages()))
 	fmt.Println("IRC/Slack-style agent communication system is fully operational!")
+}
+
+func main() {
+	fmt.Println("=== Capn Agent Communication System Demo ===")
+	fmt.Println("Demonstrating IRC/Slack-style agent communication")
+
+	// Initialize communication infrastructure
+	router, logger := setupCommunicationInfrastructure()
+
+	// Create and register agents
+	fileAgent, _, researchAgent := createAndRegisterAgents(router)
+
+	// Simulate the communication scenario from the issue description
+	simulateCommunicationScenario(logger, fileAgent, researchAgent)
+
+	// Display the complete communication log
+	displayCommunicationLog(logger)
+
+	// Demonstrate search capabilities
+	demonstrateSearchCapabilities(logger)
+
+	// Show agent history
+	showAgentHistory(logger)
+
+	// Demonstrate agent health and status
+	demonstrateHealthStatus(router)
+
+	// Demonstrate broadcast messaging
+	demonstrateBroadcastMessaging(router, logger)
+
+	// Print final summary
+	printFinalSummary(logger)
 }
